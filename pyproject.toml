@@ -1,0 +1,93 @@
+[build-system]
+requires = ["setuptools>=65", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fairness_training"
+version = "0.1.0"
+description = "A fairness-aware training and verification toolkit."
+readme = "README.md"
+authors = [
+    { name = "David Troxell" }
+]
+license = { text = "MIT" }
+requires-python = ">=3.9"
+
+# --- Core dependencies you directly use and are safe to pin ---
+dependencies = [
+    "jsonpointer>=2.1",
+    "packaging>=25.0",
+    "black>=25.9.0",
+    "click>=8.1.8",
+    "mypy_extensions>=1.1.0",
+    "pathspec>=0.12.1",
+    "pytokens>=0.3.0",
+    "ftfy>=6.3.1",
+    "regex>=2024.11.6",
+
+    # Small & safe deps
+    "cloudpickle>=2.2",
+    "jsonlines>=4.0.0",
+    "kagglehub>=0.3.13",
+    "python-dotenv>=1.1.0",
+]
+
+# --- Optional extras to avoid installation failures ---
+[project.optional-dependencies]
+
+# Everything needed for experiments
+full = [
+    "torch==2.6.0",
+    "torchvision==0.21.0",
+    "torch-geometric==2.6.1",
+
+    "numpy==2.2.4",
+    "scipy==1.15.2",
+
+    "cvxpy==1.6.5",
+    "ecos==2.0.14",
+    "diffcp==1.1.4",
+
+    "datasets==3.5.0",
+    "transformers==4.50.3",
+    "openml>=0.15.1",
+    "openai>=1.77.0",
+    "opencv-python==4.11.0.86",
+    "scikit-image>=0.25.2",
+    "seaborn>=0.13.2",
+    "tensorboard>=2.19.0",
+    "pycocotools>=2.0.8",
+    "cog>=0.14.4",
+]
+
+# Minimal ML stack (no CVXPY)
+train = [
+    "torch==2.6.0",
+    "torchvision==0.21.0",
+    "numpy==2.2.4",
+    "scipy==1.15.2",
+    "transformers==4.50.3",
+]
+
+# Verification-only stack
+verify = [
+    "cvxpy==1.6.5",
+    "ecos==2.0.14",
+    "diffcp==1.1.4",
+]
+
+# CPU-only torch install instruction
+cpu = [
+    "torch==2.6.0; platform_system!='Windows'",
+    "numpy==2.2.4",
+]
+
+dev = [
+    "black>=25.9.0",
+    "pipdeptree>=2.29.0",
+    "poetry>=2.1.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/fairness_training/fairness_training"
+Issues = "https://github.com/fairness_training/fairness_training/issues"
