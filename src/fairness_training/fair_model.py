@@ -7,11 +7,13 @@ convex optimization.
 
 Key Features:
 - Differentiable fairness layer using cvxpylayers
-- Sliding window of past predictions (P_w) for constraint stabilization
-- Configurable slack schedule for gradual constraint tightening
-- Separate handling of training and inference modes
-- Support for multiple protected attributes (marginal fairness)
-- Support for both mean prediction and mean residual fairness
+- Training: Always uses hard per-batch fairness constraints (requires batch_size >= b_tau)
+- Inference: Two regimes based on batch size vs threshold b_tau:
+  * Large batches (>= b_tau): Hard per-batch fairness constraints
+  * Small batches (< b_tau): Online primal-dual algorithm (Algorithm 1 from paper)
+- Provable aggregate fairness guarantees via Theorem 2.2 for small-batch inference
+- Support for multiple protected attributes (MARGINAL fairness - constraints per attribute)
+- Support for both mean prediction and mean residual fairness criteria
 """
 
 import torch
@@ -27,64 +29,64 @@ class FairModel(nn.Module):
     Neural network with differentiable fairness constraints.
     
     This model projects predictions from a standard neural network through a 
-    cvxpylayers optimization layer that enforces demographic parity constraints
+    cvxpylayers optimization layer that enforces marginal fairness constraints
     while minimizing distortion from the original predictions.
+    
+    Marginal Fairness: For EACH protected attribute independently, the model
+    ensures equal treatment across groups. This is more flexible than intersectional
+    fairness and scales linearly with the number of protected attributes.
+    
+    Training: Always uses hard per-batch constraints (batch_size should be >= b_tau)
+    Inference: Uses hard constraints if batch_size >= b_tau, otherwise uses
+               primal-dual algorithm for provable aggregate fairness (Theorem 2.2)
     
     Args:
         input_dim (int): Number of input features
-        hidden_dims (List[int]): List of hidden layer dimensions
+        hidden_dims (List[int]): List of hidden layer dimensions (optional if custom_network provided)
         output_dim (int): Output dimension (typically 1 for binary classification)
         protected_attr_idx (Union[int, List[int]]): Index or list of indices of protected attribute columns
         prediction_bounds (Tuple[float, float]): (lower, upper) bounds for predictions
-        initial_slack (float): Initial slack tolerance for fairness constraint
-        min_slack (float): Minimum slack value (for decay schedule)
-        slack_decay (float): Decay factor for slack per epoch (default: 0.99)
-        activation (str): Activation function ('relu', 'tanh', 'sigmoid')
-        b_tau (int): Size of sliding window for past predictions
+        fairness_tolerance (float): Target fairness tolerance epsilon
+        b_tau (int): Batch size threshold for inference - above uses hard constraints, below uses primal-dual
+        eta_0 (float): Initial dual step size for inference primal-dual updates
+        activation (str): Activation function ('relu', 'tanh', 'sigmoid', 'leaky_relu')
         fairness_criterion (str): 'mean_pred' for equal mean predictions, 
                                    'mean_residual' for equal mean residuals
+        custom_network (nn.Module): Optional custom network architecture to use instead of default
         
     Example:
-        # Single protected attribute (backward compatible)
-        model = FairModel(input_dim=20, hidden_dims=[64,32], protected_attr_idx=0)
+        # Basic usage
+        model = FairModel(input_dim=20, hidden_dims=[64, 32], protected_attr_idx=0)
         
-        # Multiple protected attributes
-        model = FairModel(input_dim=20, hidden_dims=[64,32], protected_attr_idx=[0, 1, 3])
+        # Multiple protected attributes (marginal fairness)
+        model = FairModel(input_dim=20, hidden_dims=[64, 32], protected_attr_idx=[0, 1, 3])
+        
+        # With custom network
+        custom_net = MyCustomNetwork(input_dim=20, output_dim=1)
+        model = FairModel(input_dim=20, protected_attr_idx=0, custom_network=custom_net)
         
         # Mean residual fairness (for regression)
-        model = FairModel(input_dim=20, hidden_dims=[64,32], 
+        model = FairModel(input_dim=20, hidden_dims=[64, 32], 
                          protected_attr_idx=0, fairness_criterion='mean_residual')
     """
     
     def __init__(
         self,
         input_dim: int,
-        hidden_dims: List[int],
+        hidden_dims: List[int] = None,
         output_dim: int = 1,
         protected_attr_idx: Union[int, List[int]] = 0,
         prediction_bounds: Tuple[float, float] = (0.0, 1.0),
-        initial_slack: float = 0.05,
-        min_slack: float = 0.001,
-        slack_decay: float = 0.999,
+        fairness_tolerance: float = 0.05,
+        b_tau: int = 2000,
+        eta_0: float = 0.5,
         activation: str = 'relu',
-        b_tau: int = 1000,
         fairness_criterion: str = 'mean_pred',
-        train_batch_size: int = 256,
-        eval_batch_size: int = 256,
-        warmup_batches_threshold: int = 0,
-        warmup_inference_batches: int = 100    # Inference warmup
+        custom_network: Optional[nn.Module] = None
     ):
         super(FairModel, self).__init__()
         
-        self.warmup_train_batches = 0
-        self.warmup_train_threshold = warmup_batches_threshold
-        self.warmup_inference_batches = 0
-        self.warmup_inference_threshold = warmup_inference_batches
-        self.train_batch_size = train_batch_size
-        self.eval_batch_size = eval_batch_size
-        self.last_solve_predictions = None
-        self.last_solve_indicators = None  # Dict mapping attr_idx to indicators
-            # Model configuration
+        # Model configuration
         self.input_dim = input_dim
         self.hidden_dims = hidden_dims
         self.output_dim = output_dim
@@ -104,21 +106,28 @@ class FairModel(nn.Module):
         self.fairness_criterion = fairness_criterion
         
         # Fairness constraint parameters
-        self.initial_slack = initial_slack
-        self.min_slack = min_slack
-        self.slack_decay = slack_decay
-        self.slack_current = torch.tensor([initial_slack], dtype=torch.float32)
+        self.fairness_tolerance = fairness_tolerance  # epsilon in paper
+        self.b_tau = b_tau  # Threshold for switching between regimes (inference only)
         
-        # Sliding window parameters (for stabilization)
-        self.P_w = None  # Training window
-        self.indicator_past = None  # Group indicators for training window (list of arrays)
-        self.P_inf = None  # Inference window
-        self.indicator_inf = None  # Group indicators for inference window
-        self.b_tau = b_tau
+        # Primal-dual variables for INFERENCE (when batch_size < b_tau)
+        self.lambda_dual = 0.0
+        self.eta_0 = eta_0
+        self.dual_update_count = 0
         
-        # Build the feedforward network
-        self.ffnn = self._build_network(activation)
-        self._initialize_weights()
+        # Tracking for convergence analysis (inference)
+        self.cumulative_samples = 0
+        self.cumulative_weighted_violation = 0.0
+        self.lambda_max = 0.0
+        
+        # Build or use custom network
+        if custom_network is not None:
+            self.ffnn = custom_network
+            print(f"✓ Using custom network architecture")
+        else:
+            if hidden_dims is None:
+                raise ValueError("Either provide custom_network or specify hidden_dims")
+            self.ffnn = self._build_network(activation)
+            self._initialize_weights()
         
         # Placeholder for cvxpy layer (created dynamically in forward pass)
         self.cvxpylayer = None
@@ -150,6 +159,10 @@ class FairModel(nn.Module):
                 nn.init.kaiming_uniform_(m.weight, mode='fan_in', nonlinearity='relu')
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0.01)
+    
+    def get_adaptive_eta(self) -> float:
+        """Compute adaptive step size using 1/sqrt(t) schedule for inference."""
+        return self.eta_0 / np.sqrt(max(1, self.dual_update_count))
             
     def forward(
         self, 
@@ -160,10 +173,14 @@ class FairModel(nn.Module):
         """
         Forward pass with fairness projection.
         
+        Training (inference=False): Always uses hard per-batch constraints
+        Inference (inference=True): Uses hard constraints if batch >= b_tau,
+                                    otherwise uses primal-dual algorithm
+        
         Args:
             x: Input tensor of shape (batch_size, input_dim)
             y: Target tensor (required if fairness_criterion='mean_residual')
-            inference: If True, use inference mode with separate sliding window
+            inference: If True, use inference mode (may use primal-dual for small batches)
             
         Returns:
             Fair predictions of shape (batch_size, output_dim)
@@ -175,444 +192,139 @@ class FairModel(nn.Module):
         if self.fairness_criterion == 'mean_residual' and y is None:
             raise ValueError("Target y must be provided when fairness_criterion='mean_residual'")
         
-        # Warmup period: return raw predictions BUT still update windows
-        if inference:
-            if self.warmup_inference_batches < self.warmup_inference_threshold:
-                self.warmup_inference_batches += 1
-                # Update inference window with raw predictions
-                batch_size = len(x)
-                if batch_size < self.b_tau:
-                    if self.P_inf is None:
-                        self.P_inf = np.array([])
-                        self.indicator_inf = [[] for _ in range(self.num_protected_attrs)]
-                    self._update_inference_window(y_hat, x)
-                return y_hat
-        else:
-            if self.warmup_train_batches < self.warmup_train_threshold:
-                self.warmup_train_batches += 1
-                # Update training window with raw predictions
-                batch_size = len(x)
-                if batch_size < self.b_tau:
-                    if self.P_w is None:
-                        self.P_w = np.array([])
-                        self.indicator_past = [[] for _ in range(self.num_protected_attrs)]
-                    self._update_training_window(y_hat, x)           
-                return y_hat
+        batch_size = len(x)
         
-        # Ensure slack is tensor with correct dtype
-        if not isinstance(self.slack_current, torch.Tensor):
-            self.slack_current = torch.tensor([float(self.slack_current)], dtype=torch.float32)
-        elif self.slack_current.dtype != torch.float32:
-            self.slack_current = self.slack_current.to(torch.float32)
-        
-        # Apply fairness projection (after warmup)
         if inference:
-            ytilde = self._forward_inference(x, y_hat, y)
+            # Inference mode: choose algorithm based on batch size
+            if batch_size >= self.b_tau:
+                # Large batch: use hard constraints
+                return self._forward_hard_constraints(x, y_hat, y)
+            else:
+                # Small batch: use primal-dual algorithm
+                return self._forward_primal_dual(x, y_hat, y)
         else:
-            ytilde = self._forward_training(x, y_hat, y)
-            
-        return ytilde
-            
-    def _forward_training(
+            # Training mode: always use hard constraints
+            return self._forward_hard_constraints(x, y_hat, y)
+    
+    def _forward_hard_constraints(
         self,
         x: torch.Tensor,
         y_hat: torch.Tensor,
         y: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
-        """Training forward pass with sliding window stabilization."""
+        """
+        Forward pass with hard per-batch MARGINAL fairness constraints.
+        Used for all training and large-batch inference.
+        
+        Creates a single optimization problem with constraints for ALL protected attributes.
+        """
         batch_size = len(x)
-        use_window = batch_size < self.b_tau and self.P_w is not None and self.indicator_past is not None and len(self.P_w) > 0
         
         # Create selection matrices for each protected attribute
-        selection_matrices_current = self._create_selection_matrices(x)
+        selection_matrices = self._create_selection_matrices(x)
         
-        # Create fairness layer
-        if use_window:
-            # Combine current batch with past predictions from window
-            selection_matrices_combined = self._combine_with_window(
-                selection_matrices_current, self.indicator_past, len(self.P_w)
-            )
-            
-            self.cvxpylayer = self._create_fair_layer(
-                batch_size + len(self.P_w),
-                selection_matrices_combined,
-                use_past=True,
-                past_size=len(self.P_w)
-            )
-            
-            # Prepare past predictions as fixed parameters
-            yhat_past = torch.from_numpy(self.P_w).to(torch.float32)
-            
-            try:
-                if self.fairness_criterion == 'mean_residual':
-                    y_past = torch.from_numpy(self.P_w).to(torch.float32)
-                    ytilde = self.cvxpylayer(
-                        y_hat.squeeze(1),
-                        y.squeeze(1),
-                        self.slack_current,
-                        yhat_past,
-                        y_past
-                    )[0]
-                else:
-                    ytilde = self.cvxpylayer(
-                        y_hat.squeeze(1),
-                        self.slack_current,
-                        yhat_past
-                    )[0]
-            except Exception as e:
-                print("\n" + "="*80)
-                print("CVXPY SOLVER FAILED (with window)")
-                print("="*80)
-                print(f"Error: {e}")
-                print(f"\nProblem dimensions:")
-                print(f"  Current batch size: {batch_size}")
-                print(f"  Past window size: {len(self.P_w)}")
-                print(f"  Total size: {batch_size + len(self.P_w)}")
-                print(f"\nSlack: {self.slack_current.item()}")
-                print(f"\nRaw predictions (current):")
-                print(f"  Shape: {y_hat.squeeze(1).shape}")
-                print(f"  Min: {y_hat.min().item():.4f}, Max: {y_hat.max().item():.4f}")
-                print(f"  Mean: {y_hat.mean().item():.4f}, Std: {y_hat.std().item():.4f}")
-                print(f"\nPast predictions:")
-                print(f"  Shape: {yhat_past.shape}")
-                print(f"  Min: {yhat_past.min().item():.4f}, Max: {yhat_past.max().item():.4f}")
-                print(f"  Mean: {yhat_past.mean().item():.4f}, Std: {yhat_past.std().item():.4f}")
-                
-                print(f"\n--- RAW PREDICTIONS (current batch only) ---")
-                for attr_i, attr_idx in enumerate(self.protected_attr_idx):
-                    selector_0 = selection_matrices_current[attr_i * 2]
-                    selector_1 = selection_matrices_current[attr_i * 2 + 1]
-                    n_0_raw = selector_0.sum()
-                    n_1_raw = selector_1.sum()
-                    
-                    mask_0 = torch.from_numpy(selector_0.astype(bool))
-                    mask_1 = torch.from_numpy(selector_1.astype(bool))
-                    mean_0_raw = y_hat.squeeze(1)[mask_0].mean().item() if n_0_raw > 0 else 0
-                    mean_1_raw = y_hat.squeeze(1)[mask_1].mean().item() if n_1_raw > 0 else 0
-                    gap_raw = abs(mean_0_raw - mean_1_raw)
-                    
-                    print(f"  Attribute {attr_idx}: n_0={n_0_raw:.0f}, n_1={n_1_raw:.0f} | mean_0={mean_0_raw:.4f}, mean_1={mean_1_raw:.4f} | gap={gap_raw:.6f}")
-                
-                print(f"\n--- PAST PREDICTIONS (window) ---")
-                for attr_i, attr_idx in enumerate(self.protected_attr_idx):
-                    past_indicator = np.array(self.indicator_past[attr_i])
-                    past_mask_0 = (past_indicator == 0)
-                    past_mask_1 = (past_indicator == 1)
-                    n_0_past = past_mask_0.sum()
-                    n_1_past = past_mask_1.sum()
-                    
-                    mean_0_past = yhat_past[torch.from_numpy(past_mask_0)].mean().item() if n_0_past > 0 else 0
-                    mean_1_past = yhat_past[torch.from_numpy(past_mask_1)].mean().item() if n_1_past > 0 else 0
-                    gap_past = abs(mean_0_past - mean_1_past)
-                    
-                    print(f"  Attribute {attr_idx}: n_0={n_0_past:.0f}, n_1={n_1_past:.0f} | mean_0={mean_0_past:.4f}, mean_1={mean_1_past:.4f} | gap={gap_past:.6f}")
-                
-                print(f"\n--- COMBINED (current + past) ---")
-                for attr_i, attr_idx in enumerate(self.protected_attr_idx):
-                    selector_0 = selection_matrices_combined[attr_i * 2]
-                    selector_1 = selection_matrices_combined[attr_i * 2 + 1]
-                    n_0_total = selector_0.sum()
-                    n_1_total = selector_1.sum()
-                    
-                    # Compute what the gap would be without fairness constraint
-                    all_preds = torch.cat([y_hat.squeeze(1), yhat_past])
-                    mean_0 = all_preds[torch.from_numpy(selector_0.astype(bool))].mean().item()
-                    mean_1 = all_preds[torch.from_numpy(selector_1.astype(bool))].mean().item()
-                    gap = abs(mean_0 - mean_1)
-                    print(f"  Attribute {attr_idx}: n_0={n_0_total:.0f}, n_1={n_1_total:.0f} | mean_0={mean_0:.4f}, mean_1={mean_1:.4f} | gap={gap:.6f} (slack: {self.slack_current.item():.6f})")
-                print("="*80 + "\n")
-                raise
-            
-            ytilde = ytilde.unsqueeze(1)
-            
-            # SAVE what was actually used in this solve (BEFORE updating window)
-            self.last_solve_predictions = torch.cat([ytilde.detach(), yhat_past.unsqueeze(1)], dim=0)
-            self.last_solve_indicators = {}
-            for attr_i, attr_idx in enumerate(self.protected_attr_idx):
-                current_indicators = x[:, attr_idx].cpu().numpy()
-                past_indicators_array = np.array(self.indicator_past[attr_i])
-                combined_indicators = np.concatenate([current_indicators, past_indicators_array])
-                self.last_solve_indicators[attr_idx] = combined_indicators
-            
-        else:
-            # First batch or large batch - no past predictions for fairness constraints
-            self.cvxpylayer = self._create_fair_layer(batch_size, selection_matrices_current)
-            
-            try:
-                if self.fairness_criterion == 'mean_residual':
-                    ytilde = self.cvxpylayer(
-                        y_hat.squeeze(1), 
-                        y.squeeze(1), 
-                        self.slack_current
-                    )[0]
-                else:
-                    ytilde = self.cvxpylayer(
-                        y_hat.squeeze(1), 
-                        self.slack_current
-                    )[0]
-            except Exception as e:
-                print("\n" + "="*80)
-                print("CVXPY SOLVER FAILED (no window)")
-                print("="*80)
-                print(f"Error: {e}")
-                print(f"\nProblem dimensions:")
-                print(f"  Batch size: {batch_size}")
-                print(f"\nSlack: {self.slack_current.item()}")
-                print(f"\nRaw predictions:")
-                print(f"  Shape: {y_hat.squeeze(1).shape}")
-                print(f"  Min: {y_hat.min().item():.4f}, Max: {y_hat.max().item():.4f}")
-                print(f"  Mean: {y_hat.mean().item():.4f}, Std: {y_hat.std().item():.4f}")
-                print(f"\nGroup distributions:")
-                for attr_i, attr_idx in enumerate(self.protected_attr_idx):
-                    selector_0 = selection_matrices_current[attr_i * 2]
-                    selector_1 = selection_matrices_current[attr_i * 2 + 1]
-                    print(f"  Attribute {attr_idx}: Group 0 = {selector_0.sum():.0f}, Group 1 = {selector_1.sum():.0f}")
-                    
-                    # Compute what the gap would be without fairness constraint
-                    mask_0 = torch.from_numpy(selector_0.astype(bool))
-                    mask_1 = torch.from_numpy(selector_1.astype(bool))
-                    mean_0 = y_hat.squeeze(1)[mask_0].mean().item()
-                    mean_1 = y_hat.squeeze(1)[mask_1].mean().item()
-                    gap = abs(mean_0 - mean_1)
-                    print(f"    Unconstrained gap: {gap:.6f} (slack: {self.slack_current.item():.6f})")
-                print("="*80 + "\n")
-                raise
-            
-            ytilde = ytilde.unsqueeze(1)
-            
-            # SAVE what was actually used (just current batch)
-            self.last_solve_predictions = ytilde.detach()
-            self.last_solve_indicators = {}
-            for attr_idx in self.protected_attr_idx:
-                self.last_solve_indicators[attr_idx] = x[:, attr_idx].cpu().numpy()
+        # Create and solve fairness projection with marginal constraints
+        self.cvxpylayer = self._create_hard_constraint_layer_marginal(
+            batch_size, selection_matrices
+        )
         
-        # ALWAYS update training window (even for large batches) to seed inference
-        # Initialize window if it doesn't exist
-        if self.P_w is None:
-            self.P_w = np.array([])
-            self.indicator_past = [[] for _ in range(self.num_protected_attrs)]
-        
-        self._update_training_window(ytilde, x)
-        
-        # Update slack
-        if batch_size < self.b_tau:
-            new_slack = float(max(
-                self.slack_current.item() * self.slack_decay,
-                self.min_slack
-            ))
-            self.slack_current = torch.tensor([new_slack], dtype=torch.float32)
-        else:
-            self.slack_current = torch.tensor([self.min_slack], dtype=torch.float32)
+        try:
+            raw = y_hat.squeeze(-1)
+            
+            if self.fairness_criterion == 'mean_residual':
+                y_flat = y.squeeze(-1) if y.dim() > 1 else y
+                result = self.cvxpylayer(
+                    raw,
+                    y_flat,
+                    torch.tensor([self.fairness_tolerance], dtype=torch.float32)
+                )
+            else:
+                result = self.cvxpylayer(
+                    raw,
+                    torch.tensor([self.fairness_tolerance], dtype=torch.float32)
+                )
+            
+            ytilde = result[0].unsqueeze(-1)
+            
+        except Exception as e:
+            self._print_debug_info("HARD CONSTRAINTS", x, y_hat, selection_matrices, e)
+            raise
         
         return ytilde
-            
-    def _forward_inference(
+    
+    def _forward_primal_dual(
         self,
         x: torch.Tensor,
         y_hat: torch.Tensor,
         y: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
-        """Inference forward pass with separate sliding window."""
+        """
+        Forward pass using primal-dual algorithm for small-batch inference.
+        Implements Algorithm 1 from the paper with MARGINAL fairness.
+        """
         batch_size = len(x)
         
-        # Initialize inference window from training window if available
-        if (self.P_inf is None or len(self.P_inf) == 0) and self.P_w is not None and len(self.P_w) > 0:
-            print(f"📋 Initializing inference window from training window ({len(self.P_w)} predictions)")
-            self.P_inf = self.P_w.copy()  # Copy training predictions
-            self.indicator_inf = [indicators.copy() for indicators in self.indicator_past]  # Copy indicators
+        # Create selection matrices for all protected attributes
+        selection_matrices = self._create_selection_matrices(x)
         
-        use_window = (batch_size < self.b_tau and 
-                    self.P_inf is not None and 
-                    self.indicator_inf is not None and
-                    len(self.P_inf) > 0)
+        # Get current lambda
+        lambda_val = self.lambda_dual
         
-        selection_matrices_current = self._create_selection_matrices(x)
-        min_slack_tensor = torch.tensor([self.min_slack], dtype=torch.float32)
+        # Create and solve primal-dual projection with marginal constraints
+        self.cvxpylayer = self._create_primal_dual_layer_marginal(
+            batch_size, selection_matrices, lambda_val
+        )
         
-        if use_window:
-            P_inf_tensor = torch.from_numpy(np.array(self.P_inf)).to(torch.float32)
+        try:
+            raw = y_hat.squeeze(-1)
             
-            selection_matrices_combined = self._combine_with_window(
-                selection_matrices_current, self.indicator_inf, len(P_inf_tensor)
-            )
+            if self.fairness_criterion == 'mean_residual':
+                y_flat = y.squeeze(-1) if y.dim() > 1 else y
+                result = self.cvxpylayer(raw, y_flat)
+            else:
+                result = self.cvxpylayer(raw)
             
-            self.cvxpylayer = self._create_fair_layer(
-                batch_size + len(P_inf_tensor),
-                selection_matrices_combined,
-                use_past=True,
-                past_size=len(P_inf_tensor)
-            )
+            ytilde = result[0].unsqueeze(-1)
             
-            yhat_past = P_inf_tensor
-            
-            try:
-                if self.fairness_criterion == 'mean_residual':
-                    y_past = P_inf_tensor
-                    ytilde = self.cvxpylayer(
-                        y_hat.squeeze(1),
-                        y.squeeze(1),
-                        min_slack_tensor,
-                        yhat_past,
-                        y_past
-                    )[0]
-                else:
-                    ytilde = self.cvxpylayer(
-                        y_hat.squeeze(1),
-                        min_slack_tensor,
-                        yhat_past
-                    )[0]
-
-            except Exception as e:
-                print("\n" + "="*80)
-                print("CVXPY SOLVER FAILED - INFERENCE (with window)")
-                print("="*80)
-                print(f"Error: {e}")
-                print(f"\nProblem dimensions:")
-                print(f"  Current batch size: {batch_size}")
-                print(f"  Past window size: {len(P_inf_tensor)}")
-                print(f"  Total size: {batch_size + len(P_inf_tensor)}")
-                print(f"\nSlack: {min_slack_tensor.item()}")
-                print(f"\nRaw predictions (current):")
-                print(f"  Shape: {y_hat.squeeze(1).shape}")
-                print(f"  Min: {y_hat.min().item():.4f}, Max: {y_hat.max().item():.4f}")
-                print(f"  Mean: {y_hat.mean().item():.4f}, Std: {y_hat.std().item():.4f}")
-                print(f"\nPast predictions:")
-                print(f"  Shape: {yhat_past.shape}")
-                print(f"  Min: {yhat_past.min().item():.4f}, Max: {yhat_past.max().item():.4f}")
-                print(f"  Mean: {yhat_past.mean().item():.4f}, Std: {yhat_past.std().item():.4f}")
-                
-                print(f"\n--- RAW PREDICTIONS (current batch only) ---")
-                for attr_i, attr_idx in enumerate(self.protected_attr_idx):
-                    selector_0 = selection_matrices_current[attr_i * 2]
-                    selector_1 = selection_matrices_current[attr_i * 2 + 1]
-                    n_0_raw = selector_0.sum()
-                    n_1_raw = selector_1.sum()
-                    
-                    mask_0 = torch.from_numpy(selector_0.astype(bool))
-                    mask_1 = torch.from_numpy(selector_1.astype(bool))
-                    mean_0_raw = y_hat.squeeze(1)[mask_0].mean().item() if n_0_raw > 0 else 0
-                    mean_1_raw = y_hat.squeeze(1)[mask_1].mean().item() if n_1_raw > 0 else 0
-                    gap_raw = abs(mean_0_raw - mean_1_raw)
-                    
-                    print(f"  Attribute {attr_idx}: n_0={n_0_raw:.0f}, n_1={n_1_raw:.0f} | mean_0={mean_0_raw:.4f}, mean_1={mean_1_raw:.4f} | gap={gap_raw:.6f}")
-                
-                print(f"\n--- PAST PREDICTIONS (window) ---")
-                for attr_i, attr_idx in enumerate(self.protected_attr_idx):
-                    past_indicator = np.array(self.indicator_inf[attr_i])
-                    past_mask_0 = (past_indicator == 0)
-                    past_mask_1 = (past_indicator == 1)
-                    n_0_past = past_mask_0.sum()
-                    n_1_past = past_mask_1.sum()
-                    
-                    mean_0_past = yhat_past[torch.from_numpy(past_mask_0)].mean().item() if n_0_past > 0 else 0
-                    mean_1_past = yhat_past[torch.from_numpy(past_mask_1)].mean().item() if n_1_past > 0 else 0
-                    gap_past = abs(mean_0_past - mean_1_past)
-                    
-                    print(f"  Attribute {attr_idx}: n_0={n_0_past:.0f}, n_1={n_1_past:.0f} | mean_0={mean_0_past:.4f}, mean_1={mean_1_past:.4f} | gap={gap_past:.6f}")
-                
-                print(f"\n--- COMBINED (current + past) ---")
-                for attr_i, attr_idx in enumerate(self.protected_attr_idx):
-                    selector_0 = selection_matrices_combined[attr_i * 2]
-                    selector_1 = selection_matrices_combined[attr_i * 2 + 1]
-                    n_0_total = selector_0.sum()
-                    n_1_total = selector_1.sum()
-                    
-                    # Compute what the gap would be without fairness constraint
-                    all_preds = torch.cat([y_hat.squeeze(1), yhat_past])
-                    mean_0 = all_preds[torch.from_numpy(selector_0.astype(bool))].mean().item()
-                    mean_1 = all_preds[torch.from_numpy(selector_1.astype(bool))].mean().item()
-                    gap = abs(mean_0 - mean_1)
-                    print(f"  Attribute {attr_idx}: n_0={n_0_total:.0f}, n_1={n_1_total:.0f} | mean_0={mean_0:.4f}, mean_1={mean_1:.4f} | gap={gap:.6f} (slack: {min_slack_tensor.item():.6f})")
-                print("="*80 + "\n")
-                raise
-            ytilde = ytilde.unsqueeze(1)
-            
-            # SAVE what was actually used in this solve
-            self.last_solve_predictions = torch.cat([ytilde.detach(), yhat_past.unsqueeze(1)], dim=0)
-            self.last_solve_indicators = {}
-            for attr_i, attr_idx in enumerate(self.protected_attr_idx):
-                current_indicators = x[:, attr_idx].cpu().numpy()
-                past_indicators_array = np.array(self.indicator_inf[attr_i])
-                combined_indicators = np.concatenate([current_indicators, past_indicators_array])
-                self.last_solve_indicators[attr_idx] = combined_indicators
-            
-        else:
-            self.cvxpylayer = self._create_fair_layer(batch_size, selection_matrices_current)
-            
-            try:
-                if self.fairness_criterion == 'mean_residual':
-                    ytilde = self.cvxpylayer(
-                        y_hat.squeeze(1), 
-                        y.squeeze(1), 
-                        min_slack_tensor
-                    )[0]
-                else:
-                    ytilde = self.cvxpylayer(
-                        y_hat.squeeze(1), 
-                        min_slack_tensor
-                    )[0]
-            except Exception as e:
-                print("\n" + "="*80)
-                print("CVXPY SOLVER FAILED - INFERENCE (no window)")
-                print("="*80)
-                print(f"Error: {e}")
-                print(f"\nProblem dimensions:")
-                print(f"  Batch size: {batch_size}")
-                print(f"\nSlack: {min_slack_tensor.item()}")
-                print(f"\nRaw predictions:")
-                print(f"  Shape: {y_hat.squeeze(1).shape}")
-                print(f"  Min: {y_hat.min().item():.4f}, Max: {y_hat.max().item():.4f}")
-                print(f"  Mean: {y_hat.mean().item():.4f}, Std: {y_hat.std().item():.4f}")
-                print(f"\nGroup distributions:")
-                for attr_i, attr_idx in enumerate(self.protected_attr_idx):
-                    selector_0 = selection_matrices_current[attr_i * 2]
-                    selector_1 = selection_matrices_current[attr_i * 2 + 1]
-                    print(f"  Attribute {attr_idx}: Group 0 = {selector_0.sum():.0f}, Group 1 = {selector_1.sum():.0f}")
-                    
-                    # Compute what the gap would be without fairness constraint
-                    mask_0 = torch.from_numpy(selector_0.astype(bool))
-                    mask_1 = torch.from_numpy(selector_1.astype(bool))
-                    mean_0 = y_hat.squeeze(1)[mask_0].mean().item()
-                    mean_1 = y_hat.squeeze(1)[mask_1].mean().item()
-                    gap = abs(mean_0 - mean_1)
-                    print(f"    Unconstrained gap: {gap:.6f} (slack: {min_slack_tensor.item():.6f})")
-                print("="*80 + "\n")
-                raise
-            
-            ytilde = ytilde.unsqueeze(1)
-            
-            # SAVE what was actually used
-            self.last_solve_predictions = ytilde.detach()
-            self.last_solve_indicators = {}
-            for attr_idx in self.protected_attr_idx:
-                self.last_solve_indicators[attr_idx] = x[:, attr_idx].cpu().numpy()
-            
-            if batch_size < self.b_tau:
-                self.P_inf = np.array([])  # <- Use numpy like training
-                self.indicator_inf = [[] for _ in range(self.num_protected_attrs)]
+        except Exception as e:
+            self._print_debug_info("PRIMAL-DUAL", x, y_hat, selection_matrices, e, lambda_val)
+            raise
         
-        # Update inference window
-        if batch_size < self.b_tau:
-            self._update_inference_window(ytilde, x)
+        # Compute fairness gap for dual update (max across all attributes)
+        gap = self._compute_batch_fairness_gap(ytilde, x, y)
+        violation = gap - self.fairness_tolerance
+        weighted_violation = batch_size * violation
+        
+        # Dual update: λ = max(0, λ + η_t * weighted_violation)
+        self.dual_update_count += 1
+        eta_t = self.get_adaptive_eta()
+        self.lambda_dual = max(0.0, self.lambda_dual + eta_t * weighted_violation)
+        
+        # Track statistics for Theorem 2.2 bound
+        self.lambda_max = max(self.lambda_max, self.lambda_dual)
+        self.cumulative_samples += batch_size
+        self.cumulative_weighted_violation += weighted_violation
         
         return ytilde
-
+    
     def _create_selection_matrices(self, x: torch.Tensor) -> List[np.ndarray]:
         """
         Create binary selection matrices for each protected attribute and group.
         
         Returns list of 2*num_protected_attrs numpy arrays of shape (batch_size,)
-        with 0/1 entries. For each attribute i: [selector_group0, selector_group1]
+        with 0/1 float entries indicating group membership.
+        
+        For each attribute i: [selector_group0, selector_group1]
+        Structure: [attr0_group0, attr0_group1, attr1_group0, attr1_group1, ...]
         """
-        batch_size = len(x)
         selection_matrices = []
         
         for attr_idx in self.protected_attr_idx:
             protected_vals = x[:, attr_idx].cpu().numpy()
             
-            # Group 0 selector
+            # Group 0 selector (1.0 where protected == 0, else 0.0)
             selector_0 = (protected_vals == 0).astype(np.float32)
-            # Group 1 selector
+            # Group 1 selector (1.0 where protected == 1, else 0.0)
             selector_1 = (protected_vals == 1).astype(np.float32)
             
             selection_matrices.append(selector_0)
@@ -620,231 +332,394 @@ class FairModel(nn.Module):
         
         return selection_matrices
     
-    def _combine_with_window(
-        self, 
-        current_selectors: List[np.ndarray], 
-        past_indicators: List[List[int]], 
-        past_size: int
-    ) -> List[np.ndarray]:
-        """
-        Combine current selection matrices with past indicators from sliding window.
-        
-        Args:
-            current_selectors: Selection matrices for current batch
-            past_indicators: List of lists containing past group indicators for each attribute
-            past_size: Number of past predictions
-            
-        Returns:
-            Combined selection matrices of shape (batch_size + past_size,)
-        """
-        combined = []
-        
-        for attr_i in range(self.num_protected_attrs):
-            # Current batch selectors
-            current_0 = current_selectors[attr_i * 2]
-            current_1 = current_selectors[attr_i * 2 + 1]
-            
-            # Past indicators for this attribute
-            past_indicator = np.array(past_indicators[attr_i])
-            past_0 = (past_indicator == 0).astype(np.float32)
-            past_1 = (past_indicator == 1).astype(np.float32)
-            
-            # Concatenate
-            combined_0 = np.concatenate([current_0, past_0])
-            combined_1 = np.concatenate([current_1, past_1])
-            
-            combined.append(combined_0)
-            combined.append(combined_1)
-        
-        return combined
-    
-    def _create_fair_layer(
+    def _create_hard_constraint_layer_marginal(
         self,
         batch_size: int,
-        selection_matrices: List[np.ndarray],
-        use_past: bool = False,
-        past_size: int = 0
+        selection_matrices: List[np.ndarray]
     ) -> CvxpyLayer:
         """
-        Create cvxpylayers optimization layer for fairness projection with multiple protected attributes.
+        Create cvxpylayers optimization layer with MARGINAL fairness constraints.
         
-        The optimization problem:
-            minimize    ||ytilde_current - raw_current||^2
-            subject to  lb <= ytilde <= ub (for all, including past)
-                        For each protected attribute:
-                            |mean(ytilde_all | group0) - mean(y_all | group0)| <= slack  (if mean_residual)
-                            |mean(ytilde_all | group1) - mean(y_all | group1)| <= slack  (if mean_residual)
-                        OR
-                            |mean(ytilde_all | group0) - mean(ytilde_all | group1)| <= slack (if mean_pred)
+        Uses a SINGLE decision variable yhat for all predictions, with selection
+        matrices to compute group-wise statistics for each protected attribute.
         
-        When use_past=True:
-            - batch_size includes current batch + past predictions
-            - Only optimize current predictions (minimize distortion for current only)
-            - But fairness constraints use all predictions (current + past) for stability
+        Solves:
+            minimize    ||yhat - raw||^2
+            subject to  lb <= yhat <= ub
+                        For each protected attribute j:
+                            |mean(yhat | A_j=0) - mean(yhat | A_j=1)| <= slack (mean_pred)
+                            OR
+                            |mean(y - yhat | A_j=0)| <= slack AND
+                            |mean(y - yhat | A_j=1)| <= slack (mean_residual)
         """
-        if use_past:
-            # Total size = current batch + past
-            # Decision variables for current batch only
-            current_size = batch_size - past_size
-            yhat_current = cp.Variable(current_size)
-            
-            # Past predictions are fixed (parameters, not variables)
-            yhat_past = cp.Parameter(past_size)
-            
-            # Concatenate for constraint computation
-            yhat_all = cp.hstack([yhat_current, yhat_past])
-        else:
-            # Simple case: only current batch
-            yhat_current = cp.Variable(batch_size)
-            yhat_all = yhat_current
+        # Single decision variable for all predictions
+        yhat = cp.Variable(batch_size)
         
         # Parameters
-        raw = cp.Parameter(batch_size if not use_past else batch_size - past_size)
-        slack = cp.Parameter(1)
+        raw = cp.Parameter(batch_size)
+        slack = cp.Parameter(1, nonneg=True)
+        
+        # Box constraints
+        constraints = [yhat >= self.lb, yhat <= self.ub]
         
         if self.fairness_criterion == 'mean_residual':
-            if use_past:
-                y_current = cp.Parameter(batch_size - past_size)
-                y_past = cp.Parameter(past_size)
-                y_all = cp.hstack([y_current, y_past])
-            else:
-                y_all = cp.Parameter(batch_size)
-        
-        # Constraints: box bounds
-        constr = [yhat_current >= self.lb, yhat_current <= self.ub]
-        
-        # Marginal fairness constraints for each protected attribute
-        # These use yhat_all (current + past) for stability
-        for attr_i in range(self.num_protected_attrs):
-            selector_0 = selection_matrices[attr_i * 2]
-            selector_1 = selection_matrices[attr_i * 2 + 1]
+            y = cp.Parameter(batch_size)
             
-            n_0 = selector_0.sum()
-            n_1 = selector_1.sum()
-            
-            # Skip if a group is empty
-            if n_0 < 1 or n_1 < 1:
-                continue
-            
-            if self.fairness_criterion == 'mean_residual':
-                # Mean residual fairness: E[Y - Ŷ | A=a] should be close to 0 for all groups
-                # Uses ALL predictions (current + past) for stable constraints
-                mean_pred_0 = cp.sum(cp.multiply(yhat_all, selector_0)) / n_0
-                mean_y_0 = cp.sum(cp.multiply(y_all, selector_0)) / n_0
+            # Add marginal fairness constraints for EACH protected attribute
+            for attr_i in range(self.num_protected_attrs):
+                selector_0 = selection_matrices[attr_i * 2]
+                selector_1 = selection_matrices[attr_i * 2 + 1]
                 
-                mean_pred_1 = cp.sum(cp.multiply(yhat_all, selector_1)) / n_1
-                mean_y_1 = cp.sum(cp.multiply(y_all, selector_1)) / n_1
+                n_0 = selector_0.sum()
+                n_1 = selector_1.sum()
                 
-                # Residual constraints: mean(Y - Ŷ) ≈ 0 for each group
-                constr += [
+                # Skip if either group is empty
+                if n_0 < 1 or n_1 < 1:
+                    continue
+                
+                # Mean predictions for each group (using selection matrices)
+                mean_pred_0 = cp.sum(cp.multiply(yhat, selector_0)) / n_0
+                mean_y_0 = cp.sum(cp.multiply(y, selector_0)) / n_0
+                
+                mean_pred_1 = cp.sum(cp.multiply(yhat, selector_1)) / n_1
+                mean_y_1 = cp.sum(cp.multiply(y, selector_1)) / n_1
+                
+                # Mean residual fairness: E[Y - Ŷ | A=a] ≈ 0 for each group
+                constraints += [
                     mean_pred_0 - mean_y_0 <= slack,
                     mean_pred_0 - mean_y_0 >= -slack,
                     mean_pred_1 - mean_y_1 <= slack,
                     mean_pred_1 - mean_y_1 >= -slack,
                 ]
-            else:
-                # Mean prediction fairness: E[Ŷ | A=0] ≈ E[Ŷ | A=1]
-                # Uses ALL predictions (current + past) for stable constraints
-                mean_pred_0 = cp.sum(cp.multiply(yhat_all, selector_0)) / n_0
-                mean_pred_1 = cp.sum(cp.multiply(yhat_all, selector_1)) / n_1
-                
-                # Demographic parity constraints
-                constr += [
-                    mean_pred_0 - mean_pred_1 <= slack,
-                    mean_pred_1 - mean_pred_0 <= slack,
-                ]
-        
-        # Objective: minimize distortion from raw predictions (ONLY for current batch)
-        objective = cp.Minimize(cp.sum_squares(yhat_current - raw))
-        
-        problem = cp.Problem(objective, constr)
-        
-        # Create cvxpylayer with appropriate parameters
-        if use_past:
-            if self.fairness_criterion == 'mean_residual':
-                return CvxpyLayer(
-                    problem,
-                    parameters=[raw, y_current, slack, yhat_past, y_past],
-                    variables=[yhat_current]
-                )
-            else:
-                return CvxpyLayer(
-                    problem,
-                    parameters=[raw, slack, yhat_past],
-                    variables=[yhat_current]
-                )
+            
+            objective = cp.Minimize(cp.sum_squares(yhat - raw))
+            problem = cp.Problem(objective, constraints)
+            
+            return CvxpyLayer(
+                problem,
+                parameters=[raw, y, slack],
+                variables=[yhat]
+            )
         else:
-            if self.fairness_criterion == 'mean_residual':
-                return CvxpyLayer(
-                    problem,
-                    parameters=[raw, y_all, slack],
-                    variables=[yhat_current]
-                )
-            else:
-                return CvxpyLayer(
-                    problem,
-                    parameters=[raw, slack],
-                    variables=[yhat_current]
-                )
-    
-    def _update_training_window(self, ytilde: torch.Tensor, x: torch.Tensor):
-        """Update the sliding window of past training predictions."""
-        # Ensure P_w is 1D
-        if self.P_w.ndim > 1:
-            self.P_w = self.P_w.reshape(-1)
-        
-        # Add new predictions
-        new_preds = ytilde.squeeze(1).detach().cpu().numpy()
-        self.P_w = np.concatenate([self.P_w, new_preds])
-        
-        # Add group indicators for each protected attribute
-        for attr_i, attr_idx in enumerate(self.protected_attr_idx):
-            protected_vals = x[:, attr_idx].cpu().numpy()
-            indicators = (protected_vals == 0).astype(int).tolist()
-            self.indicator_past[attr_i].extend(indicators)
-        
-        # Trim to window size
-        if len(self.P_w) > self.b_tau-self.train_batch_size:
-            self.P_w = self.P_w[-(self.b_tau-self.train_batch_size):]
+            # Mean prediction fairness
+            # Add marginal fairness constraints for EACH protected attribute
             for attr_i in range(self.num_protected_attrs):
-                self.indicator_past[attr_i] = self.indicator_past[attr_i][-(self.b_tau-self.train_batch_size):]
+                selector_0 = selection_matrices[attr_i * 2]
+                selector_1 = selection_matrices[attr_i * 2 + 1]
+                
+                n_0 = selector_0.sum()
+                n_1 = selector_1.sum()
+                
+                # Skip if either group is empty
+                if n_0 < 1 or n_1 < 1:
+                    continue
+                
+                # Mean predictions for each group
+                mean_0 = cp.sum(cp.multiply(yhat, selector_0)) / n_0
+                mean_1 = cp.sum(cp.multiply(yhat, selector_1)) / n_1
+                
+                # Demographic parity: E[Ŷ | A=0] ≈ E[Ŷ | A=1]
+                constraints += [
+                    mean_0 - mean_1 <= slack,
+                    mean_1 - mean_0 <= slack,
+                ]
+            
+            objective = cp.Minimize(cp.sum_squares(yhat - raw))
+            problem = cp.Problem(objective, constraints)
+            
+            return CvxpyLayer(
+                problem,
+                parameters=[raw, slack],
+                variables=[yhat]
+            )
     
-    def _update_inference_window(self, ytilde: torch.Tensor, x: torch.Tensor):
-        """Update the sliding window of past inference predictions."""
-        # Ensure P_inf is 1D
-        if self.P_inf.ndim > 1:
-            self.P_inf = self.P_inf.reshape(-1)
-        
-        # Add new predictions (convert to numpy)
-        new_preds = ytilde.squeeze(-1).detach().cpu().numpy()
-        self.P_inf = np.concatenate([self.P_inf, new_preds])  # Use np.concatenate, not extend
-        
-        # Add group indicators for each protected attribute
-        for attr_i, attr_idx in enumerate(self.protected_attr_idx):
-            protected_vals = x[:, attr_idx].cpu().numpy()
-            indicators = (protected_vals == 0).astype(int).tolist()
-            self.indicator_inf[attr_i].extend(indicators)  # Keep as list
-        
-        # Trim to window size
-        if len(self.P_inf) > self.b_tau - self.eval_batch_size:
-            self.P_inf = self.P_inf[-(self.b_tau - self.eval_batch_size):]
-            for attr_i in range(self.num_protected_attrs):
-                self.indicator_inf[attr_i] = self.indicator_inf[attr_i][-(self.b_tau - self.eval_batch_size):]
-    
-    def reset_windows(self, mode: str = 'both'):
+    def _create_primal_dual_layer_marginal(
+        self,
+        batch_size: int,
+        selection_matrices: List[np.ndarray],
+        lambda_val: float
+    ) -> CvxpyLayer:
         """
-        Reset sliding windows.
+        Create cvxpylayers layer for primal-dual inference with MARGINAL fairness.
+        
+        The fairness constraints are moved to the objective as a penalty term.
+        Uses max over all protected attributes for the gap penalty.
+        
+        Solves:
+            minimize    ||yhat - raw||^2 + lambda * batch_size * max_gap
+            subject to  lb <= yhat <= ub
+        """
+        # Single decision variable
+        yhat = cp.Variable(batch_size)
+        
+        # Auxiliary variable for max gap across attributes
+        max_gap = cp.Variable(1, nonneg=True)
+        
+        # Parameters
+        raw = cp.Parameter(batch_size)
+        
+        # Box constraints
+        constraints = [yhat >= self.lb, yhat <= self.ub]
+        
+        if self.fairness_criterion == 'mean_residual':
+            y = cp.Parameter(batch_size)
+            
+            # Add constraints that max_gap >= gap for each attribute
+            for attr_i in range(self.num_protected_attrs):
+                selector_0 = selection_matrices[attr_i * 2]
+                selector_1 = selection_matrices[attr_i * 2 + 1]
+                
+                n_0 = selector_0.sum()
+                n_1 = selector_1.sum()
+                
+                if n_0 < 1 or n_1 < 1:
+                    continue
+                
+                mean_pred_0 = cp.sum(cp.multiply(yhat, selector_0)) / n_0
+                mean_y_0 = cp.sum(cp.multiply(y, selector_0)) / n_0
+                
+                mean_pred_1 = cp.sum(cp.multiply(yhat, selector_1)) / n_1
+                mean_y_1 = cp.sum(cp.multiply(y, selector_1)) / n_1
+                
+                # max_gap >= |mean_residual| for each group
+                residual_0 = mean_pred_0 - mean_y_0
+                residual_1 = mean_pred_1 - mean_y_1
+                
+                constraints += [
+                    max_gap >= residual_0,
+                    max_gap >= -residual_0,
+                    max_gap >= residual_1,
+                    max_gap >= -residual_1,
+                ]
+            
+            objective = cp.Minimize(
+                cp.sum_squares(yhat - raw) + lambda_val * batch_size * max_gap
+            )
+            problem = cp.Problem(objective, constraints)
+            
+            return CvxpyLayer(
+                problem,
+                parameters=[raw, y],
+                variables=[yhat]
+            )
+        else:
+            # Mean prediction fairness
+            for attr_i in range(self.num_protected_attrs):
+                selector_0 = selection_matrices[attr_i * 2]
+                selector_1 = selection_matrices[attr_i * 2 + 1]
+                
+                n_0 = selector_0.sum()
+                n_1 = selector_1.sum()
+                
+                if n_0 < 1 or n_1 < 1:
+                    continue
+                
+                mean_0 = cp.sum(cp.multiply(yhat, selector_0)) / n_0
+                mean_1 = cp.sum(cp.multiply(yhat, selector_1)) / n_1
+                
+                # max_gap >= |mean_0 - mean_1|
+                constraints += [
+                    max_gap >= mean_0 - mean_1,
+                    max_gap >= mean_1 - mean_0,
+                ]
+            
+            objective = cp.Minimize(
+                cp.sum_squares(yhat - raw) + lambda_val * batch_size * max_gap
+            )
+            problem = cp.Problem(objective, constraints)
+            
+            return CvxpyLayer(
+                problem,
+                parameters=[raw],
+                variables=[yhat]
+            )
+    
+    def _compute_batch_fairness_gap(
+        self,
+        ytilde: torch.Tensor,
+        x: torch.Tensor,
+        y: Optional[torch.Tensor] = None
+    ) -> float:
+        """
+        Compute fairness gap for current batch.
+        Returns max gap across ALL protected attributes.
+        """
+        max_gap = 0.0
+        
+        for attr_idx in self.protected_attr_idx:
+            indicator_0 = x[:, attr_idx] == 0
+            indicator_1 = ~indicator_0
+            
+            n_0 = indicator_0.sum().item()
+            n_1 = indicator_1.sum().item()
+            
+            if n_0 == 0 or n_1 == 0:
+                continue
+            
+            preds_0 = ytilde[indicator_0]
+            preds_1 = ytilde[indicator_1]
+            
+            if self.fairness_criterion == 'mean_residual' and y is not None:
+                y_squeezed = y.squeeze(-1) if y.dim() > 1 else y
+                residual_0 = (y_squeezed[indicator_0] - preds_0.squeeze(-1)).mean().item()
+                residual_1 = (y_squeezed[indicator_1] - preds_1.squeeze(-1)).mean().item()
+                gap = max(abs(residual_0), abs(residual_1))
+            else:
+                mean_0 = preds_0.mean().item()
+                mean_1 = preds_1.mean().item()
+                gap = abs(mean_0 - mean_1)
+            
+            max_gap = max(max_gap, gap)
+        
+        return max_gap
+    
+    def _print_debug_info(
+        self,
+        context: str,
+        x: torch.Tensor,
+        y_hat: torch.Tensor,
+        selection_matrices: List[np.ndarray],
+        error: Exception,
+        lambda_val: float = None
+    ):
+        """Print detailed debug information when solver fails."""
+        print("\n" + "="*80)
+        print(f"CVXPY SOLVER FAILED - {context}")
+        print("="*80)
+        print(f"Error: {error}")
+        print(f"\nBatch size: {len(x)}")
+        print(f"b_tau threshold: {self.b_tau}")
+        print(f"Fairness tolerance: {self.fairness_tolerance}")
+        print(f"Number of protected attributes: {self.num_protected_attrs}")
+        if lambda_val is not None:
+            print(f"Lambda (dual variable): {lambda_val}")
+        print(f"\nRaw predictions: min={y_hat.min().item():.4f}, max={y_hat.max().item():.4f}, mean={y_hat.mean().item():.4f}")
+        
+        for attr_i in range(self.num_protected_attrs):
+            selector_0 = selection_matrices[attr_i * 2]
+            selector_1 = selection_matrices[attr_i * 2 + 1]
+            n_0 = selector_0.sum()
+            n_1 = selector_1.sum()
+            attr_idx = self.protected_attr_idx[attr_i]
+            print(f"\nAttribute {attr_idx}: n_0={n_0:.0f}, n_1={n_1:.0f}")
+        print("="*80 + "\n")
+    
+    def reset_inference_state(self):
+        """
+        Reset inference dual variables and statistics.
+        Should be called before evaluation on a new dataset.
+        """
+        self.lambda_dual = 0.0
+        self.dual_update_count = 0
+        self.cumulative_samples = 0
+        self.cumulative_weighted_violation = 0.0
+        self.lambda_max = 0.0
+    
+    def get_aggregate_fairness_stats(
+        self,
+        loader,
+        reset_before: bool = True
+    ) -> dict:
+        """
+        Compute aggregate fairness statistics over a data loader.
+        
+        Runs inference on entire loader and computes:
+        - Aggregate fairness gap per protected attribute
+        - Max aggregate gap across all attributes
+        - Theoretical bound from Theorem 2.2 (for small-batch inference)
+        - Max dual variable seen
         
         Args:
-            mode: 'train', 'inference', or 'both'
+            loader: DataLoader to evaluate
+            reset_before: Whether to reset inference state before evaluation
+            
+        Returns:
+            Dictionary with aggregate statistics
         """
-        if mode in ['train', 'both']:
-            self.P_w = None
-            self.indicator_past = None
-        if mode in ['inference', 'both']:
-            self.P_inf = None
-            self.indicator_inf = None
-    
-    def reset_slack(self):
-        """Reset slack to initial value."""
-        self.slack_current = torch.tensor([self.initial_slack], dtype=torch.float32)
+        self.eval()
+        
+        if reset_before:
+            self.reset_inference_state()
+        
+        # Collect predictions and targets by group for each attribute
+        all_preds = {attr_idx: {0: [], 1: []} for attr_idx in self.protected_attr_idx}
+        all_targets = {attr_idx: {0: [], 1: []} for attr_idx in self.protected_attr_idx}
+        
+        with torch.no_grad():
+            for batch_x, batch_y in loader:
+                # Skip batches without both groups in any attribute
+                skip = False
+                for attr_idx in self.protected_attr_idx:
+                    if (batch_x[:, attr_idx] == 0).sum() < 1 or \
+                       (batch_x[:, attr_idx] == 1).sum() < 1:
+                        skip = True
+                        break
+                if skip:
+                    continue
+                
+                # Get predictions (inference mode)
+                if self.fairness_criterion == 'mean_residual':
+                    preds = self(batch_x, y=batch_y, inference=True)
+                else:
+                    preds = self(batch_x, inference=True)
+                
+                # Collect by group for each attribute
+                for attr_idx in self.protected_attr_idx:
+                    indicator_0 = batch_x[:, attr_idx] == 0
+                    
+                    all_preds[attr_idx][0].extend(preds[indicator_0].squeeze(-1).cpu().tolist())
+                    all_preds[attr_idx][1].extend(preds[~indicator_0].squeeze(-1).cpu().tolist())
+                    
+                    if batch_y is not None:
+                        y_squeezed = batch_y.squeeze(-1) if batch_y.dim() > 1 else batch_y
+                        all_targets[attr_idx][0].extend(y_squeezed[indicator_0].cpu().tolist())
+                        all_targets[attr_idx][1].extend(y_squeezed[~indicator_0].cpu().tolist())
+        
+        # Compute aggregate statistics
+        stats = {}
+        max_gap = 0.0
+        
+        for attr_idx in self.protected_attr_idx:
+            preds_0 = all_preds[attr_idx][0]
+            preds_1 = all_preds[attr_idx][1]
+            
+            if len(preds_0) > 0 and len(preds_1) > 0:
+                mean_pred_0 = np.mean(preds_0)
+                mean_pred_1 = np.mean(preds_1)
+                
+                if self.fairness_criterion == 'mean_residual':
+                    targets_0 = all_targets[attr_idx][0]
+                    targets_1 = all_targets[attr_idx][1]
+                    
+                    if len(targets_0) > 0 and len(targets_1) > 0:
+                        mean_residual_0 = np.mean(np.array(targets_0) - np.array(preds_0))
+                        mean_residual_1 = np.mean(np.array(targets_1) - np.array(preds_1))
+                        gap = max(abs(mean_residual_0), abs(mean_residual_1))
+                        stats[f'mean_residual_attr_{attr_idx}_group_0'] = mean_residual_0
+                        stats[f'mean_residual_attr_{attr_idx}_group_1'] = mean_residual_1
+                    else:
+                        gap = float('nan')
+                else:
+                    gap = abs(mean_pred_0 - mean_pred_1)
+                
+                stats[f'aggregate_gap_attr_{attr_idx}'] = gap
+                stats[f'mean_pred_attr_{attr_idx}_group_0'] = mean_pred_0
+                stats[f'mean_pred_attr_{attr_idx}_group_1'] = mean_pred_1
+                
+                if not np.isnan(gap):
+                    max_gap = max(max_gap, gap)
+        
+        stats['aggregate_gap'] = max_gap
+        stats['lambda_max'] = self.lambda_max
+        stats['total_samples'] = self.cumulative_samples
+        
+        # Theoretical bound from Theorem 2.2
+        if self.cumulative_samples > 0 and self.eta_0 > 0:
+            eta_final = self.get_adaptive_eta()
+            stats['theoretical_bound'] = self.fairness_tolerance + \
+                (self.lambda_max / (eta_final * self.cumulative_samples))
+        else:
+            stats['theoretical_bound'] = float('inf')
+        
+        self.train()
+        return stats
