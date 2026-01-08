@@ -10,10 +10,9 @@ Key Features:
 - Training: Always uses hard per-batch fairness constraints (requires batch_size >= b_tau)
 - Inference: Two regimes based on batch size vs threshold b_tau:
   * Large batches (>= b_tau): Hard per-batch fairness constraints
-  * Small batches (< b_tau): Online primal-dual algorithm (Algorithm 1 from paper)
-- Provable aggregate fairness guarantees via Theorem 2.2 for small-batch inference
-- Support for multiple protected attributes (MARGINAL fairness - constraints per attribute)
-- Support for both mean prediction and mean residual fairness criteria
+  * Small batches (< b_tau): Online primal-dual algorithm
+- Support for multiple protected attributes (marginal fairness - constraints per attribute)
+- Extensible: Support for custom fairness metrics via FairnessMetric interface
 """
 
 import torch
@@ -23,6 +22,8 @@ import cvxpy as cp
 from cvxpylayers.torch import CvxpyLayer
 from typing import Optional, Union, Tuple, List
 
+from fairness_metrics import FairnessMetric
+from utils import get_fairness_metric
 
 class FairModel(nn.Module):
     """
@@ -32,13 +33,12 @@ class FairModel(nn.Module):
     cvxpylayers optimization layer that enforces marginal fairness constraints
     while minimizing distortion from the original predictions.
     
-    Marginal Fairness: For EACH protected attribute independently, the model
-    ensures equal treatment across groups. This is more flexible than intersectional
-    fairness and scales linearly with the number of protected attributes.
+    Marginal Fairness: For each protected attribute independently, the model
+    ensures constraints across groups
     
     Training: Always uses hard per-batch constraints (batch_size should be >= b_tau)
-    Inference: Uses hard constraints if batch_size >= b_tau, otherwise uses
-               primal-dual algorithm for provable aggregate fairness (Theorem 2.2)
+    Inference: Uses hard constraints if batch_size >= b_tau, otherwise uses online
+               primal-dual algorithm
     
     Args:
         input_dim (int): Number of input features
@@ -50,24 +50,26 @@ class FairModel(nn.Module):
         b_tau (int): Batch size threshold for inference - above uses hard constraints, below uses primal-dual
         eta_0 (float): Initial dual step size for inference primal-dual updates
         activation (str): Activation function ('relu', 'tanh', 'sigmoid', 'leaky_relu')
-        fairness_criterion (str): 'mean_pred' for equal mean predictions, 
-                                   'mean_residual' for equal mean residuals
+        fairness_metric: Either a string ('mean_pred', 'mean_residual') or a FairnessMetric instance
         custom_network (nn.Module): Optional custom network architecture to use instead of default
         
     Example:
-        # Basic usage
+        # Basic usage with string metric
         model = FairModel(input_dim=20, hidden_dims=[64, 32], protected_attr_idx=0)
         
         # Multiple protected attributes (marginal fairness)
-        model = FairModel(input_dim=20, hidden_dims=[64, 32], protected_attr_idx=[0, 1, 3])
+        model = FairModel(input_dim=20, hidden_dims=[64, 32], protected_attr_idx=[0, 1])
         
         # With custom network
         custom_net = MyCustomNetwork(input_dim=20, output_dim=1)
         model = FairModel(input_dim=20, protected_attr_idx=0, custom_network=custom_net)
         
-        # Mean residual fairness (for regression)
+        # With custom fairness metric
+        from fairness_metrics import FairnessMetric
+        class MyMetric(FairnessMetric):
+            ...
         model = FairModel(input_dim=20, hidden_dims=[64, 32], 
-                         protected_attr_idx=0, fairness_criterion='mean_residual')
+                         protected_attr_idx=0, fairness_metric=MyMetric(num_protected_attrs=1))
     """
     
     def __init__(
@@ -81,8 +83,10 @@ class FairModel(nn.Module):
         b_tau: int = 2000,
         eta_0: float = 0.5,
         activation: str = 'relu',
-        fairness_criterion: str = 'mean_pred',
-        custom_network: Optional[nn.Module] = None
+        fairness_metric: Union[str, FairnessMetric] = 'mean_pred',
+        custom_network: Optional[nn.Module] = None,
+        #will be converted to fairness_metric
+        fairness_criterion: Optional[str] = None
     ):
         super(FairModel, self).__init__()
         
@@ -91,25 +95,35 @@ class FairModel(nn.Module):
         self.hidden_dims = hidden_dims
         self.output_dim = output_dim
         
-        # Handle single or multiple protected attributes
+        # Handle 1 or 2 protected attributes
         if isinstance(protected_attr_idx, int):
             self.protected_attr_idx = [protected_attr_idx]
         else:
             self.protected_attr_idx = list(protected_attr_idx)
         
         self.num_protected_attrs = len(self.protected_attr_idx)
+        if self.num_protected_attrs > 2:
+            raise ValueError("FairModel currently only supports up to 2 protected attributes.")
+        
         self.lb, self.ub = prediction_bounds
         
-        # Fairness criterion
-        if fairness_criterion not in ['mean_pred', 'mean_residual']:
-            raise ValueError(f"fairness_criterion must be 'mean_pred' or 'mean_residual', got {fairness_criterion}")
-        self.fairness_criterion = fairness_criterion
+        # Handle legacy fairness_criterion parameter
+        if fairness_criterion is not None:
+            import warnings
+            warnings.warn(
+                "fairness_criterion is deprecated, use fairness_metric instead",
+                DeprecationWarning
+            )
+            fairness_metric = fairness_criterion
         
-        # Fairness constraint parameters
+        self.fairness_metric = get_fairness_metric(fairness_metric, self.num_protected_attrs)
+        
+        self.requires_targets = self.fairness_metric.requires_targets
+        self.requires_y_in_constraints = self.fairness_metric.requires_y_in_constraints
         self.fairness_tolerance = fairness_tolerance  # epsilon in paper
-        self.b_tau = b_tau  # Threshold for switching between regimes (inference only)
+        self.b_tau = b_tau
         
-        # Primal-dual variables for INFERENCE (when batch_size < b_tau)
+        # Primal-dual variables for inferendce (when batch_size < b_tau)
         self.lambda_dual = 0.0
         self.eta_0 = eta_0
         self.dual_update_count = 0
@@ -122,14 +136,14 @@ class FairModel(nn.Module):
         # Build or use custom network
         if custom_network is not None:
             self.ffnn = custom_network
-            print(f"✓ Using custom network architecture")
+            print(f"Using custom network architecture")
         else:
             if hidden_dims is None:
                 raise ValueError("Either provide custom_network or specify hidden_dims")
             self.ffnn = self._build_network(activation)
             self._initialize_weights()
         
-        # Placeholder for cvxpy layer (created dynamically in forward pass)
+        # Placeholder for cvxpy layer (created dynamically later)
         self.cvxpylayer = None
         
     def _build_network(self, activation: str) -> nn.Sequential:
@@ -137,7 +151,6 @@ class FairModel(nn.Module):
         layers = []
         dims = [self.input_dim] + self.hidden_dims + [self.output_dim]
         
-        # Activation function mapping
         act_fn = {
             'relu': nn.ReLU(),
             'tanh': nn.Tanh(),
@@ -147,7 +160,7 @@ class FairModel(nn.Module):
         
         for i in range(len(dims) - 1):
             layers.append(nn.Linear(dims[i], dims[i + 1]))
-            if i < len(dims) - 2:  # No activation after last layer
+            if i < len(dims) - 2:
                 layers.append(act_fn)
                 
         return nn.Sequential(*layers)
@@ -159,10 +172,6 @@ class FairModel(nn.Module):
                 nn.init.kaiming_uniform_(m.weight, mode='fan_in', nonlinearity='relu')
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0.01)
-    
-    def get_adaptive_eta(self) -> float:
-        """Compute adaptive step size using 1/sqrt(t) schedule for inference."""
-        return self.eta_0 / np.sqrt(max(1, self.dual_update_count))
             
     def forward(
         self, 
@@ -171,15 +180,11 @@ class FairModel(nn.Module):
         inference: bool = False
     ) -> torch.Tensor:
         """
-        Forward pass with fairness projection.
-        
-        Training (inference=False): Always uses hard per-batch constraints
-        Inference (inference=True): Uses hard constraints if batch >= b_tau,
-                                    otherwise uses primal-dual algorithm
+        Forward pass that routes to inference or training implementations.
         
         Args:
             x: Input tensor of shape (batch_size, input_dim)
-            y: Target tensor (required if fairness_criterion='mean_residual')
+            y: Target tensor (required if fairness_metric.requires_targets is True)
             inference: If True, use inference mode (may use primal-dual for small batches)
             
         Returns:
@@ -189,68 +194,53 @@ class FairModel(nn.Module):
         y_hat = self.ffnn(x)
         
         # Check if targets are needed
-        if self.fairness_criterion == 'mean_residual' and y is None:
-            raise ValueError("Target y must be provided when fairness_criterion='mean_residual'")
+        if self.requires_targets and y is None:
+            raise ValueError(
+                f"Target y must be provided when using {type(self.fairness_metric).__name__} "
+                f"(requires_targets=True)"
+            )
         
         batch_size = len(x)
         
-        if inference:
-            # Inference mode: choose algorithm based on batch size
-            if batch_size >= self.b_tau:
-                # Large batch: use hard constraints
-                return self._forward_hard_constraints(x, y_hat, y)
-            else:
-                # Small batch: use primal-dual algorithm
-                return self._forward_primal_dual(x, y_hat, y)
+        # TRAINING: Always use hard constraints (batch_size should be >= b_tau)
+        if not inference:
+            return self._forward_hard_constraint(x, y_hat, y)
+        
+        # INFERENCE: Choose algorithm based on batch size
+        if batch_size >= self.b_tau:
+            return self._forward_hard_constraint(x, y_hat, y)
         else:
-            # Training mode: always use hard constraints
-            return self._forward_hard_constraints(x, y_hat, y)
+            return self._forward_primal_dual(x, y_hat, y)
     
-    def _forward_hard_constraints(
+    def _forward_hard_constraint(
         self,
         x: torch.Tensor,
         y_hat: torch.Tensor,
         y: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
-        """
-        Forward pass with hard per-batch MARGINAL fairness constraints.
-        Used for all training and large-batch inference.
-        
-        Creates a single optimization problem with constraints for ALL protected attributes.
-        """
+        """Apply hard fairness constraints using cvxpylayers."""
         batch_size = len(x)
         
-        # Create selection matrices for each protected attribute
-        selection_matrices = self._create_selection_matrices(x)
-        
-        # Create and solve fairness projection with marginal constraints
-        self.cvxpylayer = self._create_hard_constraint_layer_marginal(
-            batch_size, selection_matrices
+        # Create selection matrices using the metric's method (allows metric-specific logic)
+        selection_matrices = self.fairness_metric.create_selection_matrices(
+            x, y, self.protected_attr_idx
         )
         
+        self.cvxpylayer = self._create_hard_constraint_layer(batch_size, selection_matrices)
+        
+        # Build parameter list
+        params = [y_hat.squeeze(1)]
+        if self.requires_y_in_constraints:
+            params.append(y.squeeze(1) if y.dim() > 1 else y)
+        params.append(torch.tensor([self.fairness_tolerance], dtype=torch.float32))
+        
         try:
-            raw = y_hat.squeeze(-1)
-            
-            if self.fairness_criterion == 'mean_residual':
-                y_flat = y.squeeze(-1) if y.dim() > 1 else y
-                result = self.cvxpylayer(
-                    raw,
-                    y_flat,
-                    torch.tensor([self.fairness_tolerance], dtype=torch.float32)
-                )
-            else:
-                result = self.cvxpylayer(
-                    raw,
-                    torch.tensor([self.fairness_tolerance], dtype=torch.float32)
-                )
-            
-            ytilde = result[0].unsqueeze(-1)
-            
+            ytilde = self.cvxpylayer(*params)[0]
         except Exception as e:
-            self._print_debug_info("HARD CONSTRAINTS", x, y_hat, selection_matrices, e)
+            self._print_solver_debug_info(e, x, y_hat, y, selection_matrices, batch_size)
             raise
         
-        return ytilde
+        return ytilde.unsqueeze(1)
     
     def _forward_primal_dual(
         self,
@@ -259,356 +249,188 @@ class FairModel(nn.Module):
         y: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
         """
-        Forward pass using primal-dual algorithm for small-batch inference.
-        Implements Algorithm 1 from the paper with MARGINAL fairness.
+        Small-batch inference using online primal-dual algorithm.
+        
+        Individual batches may violate fairness constraints, but aggregate
+        fairness is guaranteed over time
         """
         batch_size = len(x)
         
-        # Create selection matrices for all protected attributes
-        selection_matrices = self._create_selection_matrices(x)
-        
-        # Get current lambda
-        lambda_val = self.lambda_dual
-        
-        # Create and solve primal-dual projection with marginal constraints
-        self.cvxpylayer = self._create_primal_dual_layer_marginal(
-            batch_size, selection_matrices, lambda_val
+        # Create selection matrices using the metric's method
+        selection_matrices = self.fairness_metric.create_selection_matrices(
+            x, y, self.protected_attr_idx
         )
         
+        self.cvxpylayer = self._create_primal_dual_layer(
+            batch_size, selection_matrices, self.lambda_dual
+        )
+        
+        # Build parameter list
+        params = [y_hat.squeeze(1)]
+        if self.requires_y_in_constraints:
+            params.append(y.squeeze(1) if y.dim() > 1 else y)
+        
+        # Solve primal problem
         try:
-            raw = y_hat.squeeze(-1)
-            
-            if self.fairness_criterion == 'mean_residual':
-                y_flat = y.squeeze(-1) if y.dim() > 1 else y
-                result = self.cvxpylayer(raw, y_flat)
-            else:
-                result = self.cvxpylayer(raw)
-            
-            ytilde = result[0].unsqueeze(-1)
-            
+            ytilde = self.cvxpylayer(*params)[0]
         except Exception as e:
-            self._print_debug_info("PRIMAL-DUAL", x, y_hat, selection_matrices, e, lambda_val)
+            self._print_solver_debug_info(e, x, y_hat, y, selection_matrices, batch_size)
             raise
         
-        # Compute fairness gap for dual update (max across all attributes)
-        gap = self._compute_batch_fairness_gap(ytilde, x, y)
-        violation = gap - self.fairness_tolerance
-        weighted_violation = batch_size * violation
+        ytilde_unsqueezed = ytilde.unsqueeze(1)
         
-        # Dual update: λ = max(0, λ + η_t * weighted_violation)
-        self.dual_update_count += 1
-        eta_t = self.get_adaptive_eta()
-        self.lambda_dual = max(0.0, self.lambda_dual + eta_t * weighted_violation)
-        
-        # Track statistics for Theorem 2.2 bound
-        self.lambda_max = max(self.lambda_max, self.lambda_dual)
-        self.cumulative_samples += batch_size
-        self.cumulative_weighted_violation += weighted_violation
-        
-        return ytilde
-    
-    def _create_selection_matrices(self, x: torch.Tensor) -> List[np.ndarray]:
-        """
-        Create binary selection matrices for each protected attribute and group.
-        
-        Returns list of 2*num_protected_attrs numpy arrays of shape (batch_size,)
-        with 0/1 float entries indicating group membership.
-        
-        For each attribute i: [selector_group0, selector_group1]
-        Structure: [attr0_group0, attr0_group1, attr1_group0, attr1_group1, ...]
-        """
-        selection_matrices = []
-        
-        for attr_idx in self.protected_attr_idx:
-            protected_vals = x[:, attr_idx].cpu().numpy()
+        # Compute fairness gap for this batch
+        with torch.no_grad():
+            predictions_np = ytilde.detach().cpu().numpy()
+            targets_np = y.detach().cpu().numpy() if y is not None else None
+            protected_indicators = {
+                attr_idx: x[:, attr_idx].cpu().numpy() 
+                for attr_idx in self.protected_attr_idx
+            }
             
-            # Group 0 selector (1.0 where protected == 0, else 0.0)
-            selector_0 = (protected_vals == 0).astype(np.float32)
-            # Group 1 selector (1.0 where protected == 1, else 0.0)
-            selector_1 = (protected_vals == 1).astype(np.float32)
+            gap = self.fairness_metric.compute_gap(predictions_np, targets_np, protected_indicators)
+            violation = gap - self.fairness_tolerance
+            weighted_violation = batch_size * violation
             
-            selection_matrices.append(selector_0)
-            selection_matrices.append(selector_1)
+            # Dual update 
+            self.dual_update_count += 1
+            eta_t = self.eta_0 / np.sqrt(self.dual_update_count)
+            self.lambda_dual = max(0.0, self.lambda_dual + eta_t * weighted_violation)
+            
+            # Track statistics
+            self.cumulative_samples += batch_size
+            self.cumulative_weighted_violation += weighted_violation
+            self.lambda_max = max(self.lambda_max, self.lambda_dual)
         
-        return selection_matrices
+        return ytilde_unsqueezed
     
-    def _create_hard_constraint_layer_marginal(
+    def _create_hard_constraint_layer(
         self,
         batch_size: int,
         selection_matrices: List[np.ndarray]
     ) -> CvxpyLayer:
         """
-        Create cvxpylayers optimization layer with MARGINAL fairness constraints.
+        Create cvxpylayers layer with hard fairness constraints.
         
-        Uses a SINGLE decision variable yhat for all predictions, with selection
-        matrices to compute group-wise statistics for each protected attribute.
-        
-        Solves:
-            minimize    ||yhat - raw||^2
-            subject to  lb <= yhat <= ub
-                        For each protected attribute j:
-                            |mean(yhat | A_j=0) - mean(yhat | A_j=1)| <= slack (mean_pred)
-                            OR
-                            |mean(y - yhat | A_j=0)| <= slack AND
-                            |mean(y - yhat | A_j=1)| <= slack (mean_residual)
+        Delegates constraint creation to the fairness metric.
         """
-        # Single decision variable for all predictions
         yhat = cp.Variable(batch_size)
-        
-        # Parameters
         raw = cp.Parameter(batch_size)
         slack = cp.Parameter(1, nonneg=True)
         
-        # Box constraints
         constraints = [yhat >= self.lb, yhat <= self.ub]
         
-        if self.fairness_criterion == 'mean_residual':
+        # Add target parameter if needed for constraints
+        if self.requires_y_in_constraints:
             y = cp.Parameter(batch_size)
-            
-            # Add marginal fairness constraints for EACH protected attribute
-            for attr_i in range(self.num_protected_attrs):
-                selector_0 = selection_matrices[attr_i * 2]
-                selector_1 = selection_matrices[attr_i * 2 + 1]
-                
-                n_0 = selector_0.sum()
-                n_1 = selector_1.sum()
-                
-                # Skip if either group is empty
-                if n_0 < 1 or n_1 < 1:
-                    continue
-                
-                # Mean predictions for each group (using selection matrices)
-                mean_pred_0 = cp.sum(cp.multiply(yhat, selector_0)) / n_0
-                mean_y_0 = cp.sum(cp.multiply(y, selector_0)) / n_0
-                
-                mean_pred_1 = cp.sum(cp.multiply(yhat, selector_1)) / n_1
-                mean_y_1 = cp.sum(cp.multiply(y, selector_1)) / n_1
-                
-                # Mean residual fairness: E[Y - Ŷ | A=a] ≈ 0 for each group
-                constraints += [
-                    mean_pred_0 - mean_y_0 <= slack,
-                    mean_pred_0 - mean_y_0 >= -slack,
-                    mean_pred_1 - mean_y_1 <= slack,
-                    mean_pred_1 - mean_y_1 >= -slack,
-                ]
-            
-            objective = cp.Minimize(cp.sum_squares(yhat - raw))
-            problem = cp.Problem(objective, constraints)
-            
-            return CvxpyLayer(
-                problem,
-                parameters=[raw, y, slack],
-                variables=[yhat]
+            fairness_constraints = self.fairness_metric.create_constraints(
+                yhat, selection_matrices, slack, y
             )
         else:
-            # Mean prediction fairness
-            # Add marginal fairness constraints for EACH protected attribute
-            for attr_i in range(self.num_protected_attrs):
-                selector_0 = selection_matrices[attr_i * 2]
-                selector_1 = selection_matrices[attr_i * 2 + 1]
-                
-                n_0 = selector_0.sum()
-                n_1 = selector_1.sum()
-                
-                # Skip if either group is empty
-                if n_0 < 1 or n_1 < 1:
-                    continue
-                
-                # Mean predictions for each group
-                mean_0 = cp.sum(cp.multiply(yhat, selector_0)) / n_0
-                mean_1 = cp.sum(cp.multiply(yhat, selector_1)) / n_1
-                
-                # Demographic parity: E[Ŷ | A=0] ≈ E[Ŷ | A=1]
-                constraints += [
-                    mean_0 - mean_1 <= slack,
-                    mean_1 - mean_0 <= slack,
-                ]
-            
-            objective = cp.Minimize(cp.sum_squares(yhat - raw))
-            problem = cp.Problem(objective, constraints)
-            
-            return CvxpyLayer(
-                problem,
-                parameters=[raw, slack],
-                variables=[yhat]
+            y = None
+            fairness_constraints = self.fairness_metric.create_constraints(
+                yhat, selection_matrices, slack
             )
+        
+        constraints.extend(fairness_constraints)
+        
+        # Objective: minimize discrepancy function
+        objective = cp.Minimize(cp.sum_squares(yhat - raw))
+        problem = cp.Problem(objective, constraints)
+        
+        # Build parameter list
+        if self.requires_y_in_constraints:
+            return CvxpyLayer(problem, parameters=[raw, y, slack], variables=[yhat])
+        else:
+            return CvxpyLayer(problem, parameters=[raw, slack], variables=[yhat])
     
-    def _create_primal_dual_layer_marginal(
+    def _create_primal_dual_layer(
         self,
         batch_size: int,
         selection_matrices: List[np.ndarray],
         lambda_val: float
     ) -> CvxpyLayer:
         """
-        Create cvxpylayers layer for primal-dual inference with MARGINAL fairness.
+        Create cvxpylayers layer for primal-dual inference.
         
-        The fairness constraints are moved to the objective as a penalty term.
-        Uses max over all protected attributes for the gap penalty.
-        
-        Solves:
-            minimize    ||yhat - raw||^2 + lambda * batch_size * max_gap
-            subject to  lb <= yhat <= ub
+        Moves fairness constraints to objective as penalty.
         """
-        # Single decision variable
         yhat = cp.Variable(batch_size)
-        
-        # Auxiliary variable for max gap across attributes
         max_gap = cp.Variable(1, nonneg=True)
-        
-        # Parameters
         raw = cp.Parameter(batch_size)
         
         # Box constraints
         constraints = [yhat >= self.lb, yhat <= self.ub]
         
-        if self.fairness_criterion == 'mean_residual':
+        # Get penalty constraints from metric
+        if self.requires_y_in_constraints:
             y = cp.Parameter(batch_size)
-            
-            # Add constraints that max_gap >= gap for each attribute
-            for attr_i in range(self.num_protected_attrs):
-                selector_0 = selection_matrices[attr_i * 2]
-                selector_1 = selection_matrices[attr_i * 2 + 1]
-                
-                n_0 = selector_0.sum()
-                n_1 = selector_1.sum()
-                
-                if n_0 < 1 or n_1 < 1:
-                    continue
-                
-                mean_pred_0 = cp.sum(cp.multiply(yhat, selector_0)) / n_0
-                mean_y_0 = cp.sum(cp.multiply(y, selector_0)) / n_0
-                
-                mean_pred_1 = cp.sum(cp.multiply(yhat, selector_1)) / n_1
-                mean_y_1 = cp.sum(cp.multiply(y, selector_1)) / n_1
-                
-                # max_gap >= |mean_residual| for each group
-                residual_0 = mean_pred_0 - mean_y_0
-                residual_1 = mean_pred_1 - mean_y_1
-                
-                constraints += [
-                    max_gap >= residual_0,
-                    max_gap >= -residual_0,
-                    max_gap >= residual_1,
-                    max_gap >= -residual_1,
-                ]
-            
-            objective = cp.Minimize(
-                cp.sum_squares(yhat - raw) + lambda_val * batch_size * max_gap
-            )
-            problem = cp.Problem(objective, constraints)
-            
-            return CvxpyLayer(
-                problem,
-                parameters=[raw, y],
-                variables=[yhat]
+            max_gap_var, penalty_constraints = self.fairness_metric.create_primal_dual_penalty(
+                yhat, selection_matrices, y
             )
         else:
-            # Mean prediction fairness
-            for attr_i in range(self.num_protected_attrs):
-                selector_0 = selection_matrices[attr_i * 2]
-                selector_1 = selection_matrices[attr_i * 2 + 1]
-                
-                n_0 = selector_0.sum()
-                n_1 = selector_1.sum()
-                
-                if n_0 < 1 or n_1 < 1:
-                    continue
-                
-                mean_0 = cp.sum(cp.multiply(yhat, selector_0)) / n_0
-                mean_1 = cp.sum(cp.multiply(yhat, selector_1)) / n_1
-                
-                # max_gap >= |mean_0 - mean_1|
-                constraints += [
-                    max_gap >= mean_0 - mean_1,
-                    max_gap >= mean_1 - mean_0,
-                ]
-            
-            objective = cp.Minimize(
-                cp.sum_squares(yhat - raw) + lambda_val * batch_size * max_gap
+            y = None
+            max_gap_var, penalty_constraints = self.fairness_metric.create_primal_dual_penalty(
+                yhat, selection_matrices
             )
-            problem = cp.Problem(objective, constraints)
-            
-            return CvxpyLayer(
-                problem,
-                parameters=[raw],
-                variables=[yhat]
-            )
-    
-    def _compute_batch_fairness_gap(
-        self,
-        ytilde: torch.Tensor,
-        x: torch.Tensor,
-        y: Optional[torch.Tensor] = None
-    ) -> float:
-        """
-        Compute fairness gap for current batch.
-        Returns max gap across ALL protected attributes.
-        """
-        max_gap = 0.0
         
-        for attr_idx in self.protected_attr_idx:
-            indicator_0 = x[:, attr_idx] == 0
-            indicator_1 = ~indicator_0
-            
-            n_0 = indicator_0.sum().item()
-            n_1 = indicator_1.sum().item()
-            
-            if n_0 == 0 or n_1 == 0:
-                continue
-            
-            preds_0 = ytilde[indicator_0]
-            preds_1 = ytilde[indicator_1]
-            
-            if self.fairness_criterion == 'mean_residual' and y is not None:
-                y_squeezed = y.squeeze(-1) if y.dim() > 1 else y
-                residual_0 = (y_squeezed[indicator_0] - preds_0.squeeze(-1)).mean().item()
-                residual_1 = (y_squeezed[indicator_1] - preds_1.squeeze(-1)).mean().item()
-                gap = max(abs(residual_0), abs(residual_1))
-            else:
-                mean_0 = preds_0.mean().item()
-                mean_1 = preds_1.mean().item()
-                gap = abs(mean_0 - mean_1)
-            
-            max_gap = max(max_gap, gap)
+        # Use max_gap from metric if returned, otherwise use our own
+        if max_gap_var is not None:
+            max_gap = max_gap_var
+            constraints.extend(penalty_constraints)
         
-        return max_gap
+        # Objective: distortion + penalty
+        objective = cp.Minimize(
+            cp.sum_squares(yhat - raw) + lambda_val * batch_size * max_gap
+        )
+        problem = cp.Problem(objective, constraints)
+        
+        if self.requires_y_in_constraints:
+            return CvxpyLayer(problem, parameters=[raw, y], variables=[yhat])
+        else:
+            return CvxpyLayer(problem, parameters=[raw], variables=[yhat])
     
-    def _print_debug_info(
+    def _print_solver_debug_info(
         self,
-        context: str,
+        error: Exception,
         x: torch.Tensor,
         y_hat: torch.Tensor,
+        y: Optional[torch.Tensor],
         selection_matrices: List[np.ndarray],
-        error: Exception,
-        lambda_val: float = None
+        batch_size: int
     ):
-        """Print detailed debug information when solver fails."""
+        """Print debug information when solver fails"""
         print("\n" + "="*80)
-        print(f"CVXPY SOLVER FAILED - {context}")
+        print("CVXPY SOLVER FAILED")
         print("="*80)
         print(f"Error: {error}")
-        print(f"\nBatch size: {len(x)}")
-        print(f"b_tau threshold: {self.b_tau}")
+        print(f"\nBatch size: {batch_size}")
         print(f"Fairness tolerance: {self.fairness_tolerance}")
-        print(f"Number of protected attributes: {self.num_protected_attrs}")
-        if lambda_val is not None:
-            print(f"Lambda (dual variable): {lambda_val}")
-        print(f"\nRaw predictions: min={y_hat.min().item():.4f}, max={y_hat.max().item():.4f}, mean={y_hat.mean().item():.4f}")
+        print(f"Metric: {type(self.fairness_metric).__name__}")
+        print(f"\nRaw predictions:")
+        print(f"  Shape: {y_hat.squeeze(1).shape}")
+        print(f"  Min: {y_hat.min().item():.4f}, Max: {y_hat.max().item():.4f}")
+        print(f"  Mean: {y_hat.mean().item():.4f}, Std: {y_hat.std().item():.4f}")
         
-        for attr_i in range(self.num_protected_attrs):
+        print(f"\nGroup distributions:")
+        for attr_i, attr_idx in enumerate(self.protected_attr_idx):
             selector_0 = selection_matrices[attr_i * 2]
             selector_1 = selection_matrices[attr_i * 2 + 1]
             n_0 = selector_0.sum()
             n_1 = selector_1.sum()
-            attr_idx = self.protected_attr_idx[attr_i]
-            print(f"\nAttribute {attr_idx}: n_0={n_0:.0f}, n_1={n_1:.0f}")
+            print(f"  Attribute {attr_idx}: Group 0 = {n_0:.0f}, Group 1 = {n_1:.0f}")
+            
+            if n_0 > 0 and n_1 > 0:
+                mask_0 = torch.from_numpy(selector_0.astype(bool))
+                mask_1 = torch.from_numpy(selector_1.astype(bool))
+                mean_0 = y_hat.squeeze(1)[mask_0].mean().item()
+                mean_1 = y_hat.squeeze(1)[mask_1].mean().item()
+                gap = abs(mean_0 - mean_1)
+                print(f"    Unconstrained gap: {gap:.6f} (tolerance: {self.fairness_tolerance})")
         print("="*80 + "\n")
     
     def reset_inference_state(self):
-        """
-        Reset inference dual variables and statistics.
-        Should be called before evaluation on a new dataset.
-        """
+        """Reset primal-dual state for inference. Call before new inference sequence"""
         self.lambda_dual = 0.0
         self.dual_update_count = 0
         self.cumulative_samples = 0
@@ -617,109 +439,81 @@ class FairModel(nn.Module):
     
     def get_aggregate_fairness_stats(
         self,
-        loader,
+        data_loader,
         reset_before: bool = True
     ) -> dict:
         """
-        Compute aggregate fairness statistics over a data loader.
+        Compute aggregate fairness statistics over a data loader
         
-        Runs inference on entire loader and computes:
-        - Aggregate fairness gap per protected attribute
-        - Max aggregate gap across all attributes
-        - Theoretical bound from Theorem 2.2 (for small-batch inference)
-        - Max dual variable seen
+        Uses inference mode with primal-dual algorithm for small batches.
         
         Args:
-            loader: DataLoader to evaluate
-            reset_before: Whether to reset inference state before evaluation
+            data_loader: PyTorch DataLoader
+            reset_before: If True, reset inference state before evaluation
             
         Returns:
             Dictionary with aggregate statistics
         """
-        self.eval()
-        
         if reset_before:
             self.reset_inference_state()
         
-        # Collect predictions and targets by group for each attribute
-        all_preds = {attr_idx: {0: [], 1: []} for attr_idx in self.protected_attr_idx}
-        all_targets = {attr_idx: {0: [], 1: []} for attr_idx in self.protected_attr_idx}
+        self.eval()
+        
+        all_predictions = []
+        all_targets = []
+        all_protected = {attr_idx: [] for attr_idx in self.protected_attr_idx}
         
         with torch.no_grad():
-            for batch_x, batch_y in loader:
-                # Skip batches without both groups in any attribute
-                skip = False
+            for batch_x, batch_y in data_loader:
+                # Check if both groups present for all attributes
+                skip_batch = False
                 for attr_idx in self.protected_attr_idx:
                     if (batch_x[:, attr_idx] == 0).sum() < 1 or \
                        (batch_x[:, attr_idx] == 1).sum() < 1:
-                        skip = True
+                        skip_batch = True
                         break
-                if skip:
+                
+                if skip_batch:
                     continue
                 
-                # Get predictions (inference mode)
-                if self.fairness_criterion == 'mean_residual':
-                    preds = self(batch_x, y=batch_y, inference=True)
+                # Forward pass in inference mode
+                if self.requires_targets:
+                    predictions = self(batch_x, y=batch_y, inference=True)
                 else:
-                    preds = self(batch_x, inference=True)
+                    predictions = self(batch_x, inference=True)
                 
-                # Collect by group for each attribute
+                all_predictions.append(predictions.cpu())
+                all_targets.append(batch_y.cpu())
+                
                 for attr_idx in self.protected_attr_idx:
-                    indicator_0 = batch_x[:, attr_idx] == 0
-                    
-                    all_preds[attr_idx][0].extend(preds[indicator_0].squeeze(-1).cpu().tolist())
-                    all_preds[attr_idx][1].extend(preds[~indicator_0].squeeze(-1).cpu().tolist())
-                    
-                    if batch_y is not None:
-                        y_squeezed = batch_y.squeeze(-1) if batch_y.dim() > 1 else batch_y
-                        all_targets[attr_idx][0].extend(y_squeezed[indicator_0].cpu().tolist())
-                        all_targets[attr_idx][1].extend(y_squeezed[~indicator_0].cpu().tolist())
+                    all_protected[attr_idx].append(batch_x[:, attr_idx].cpu())
         
-        # Compute aggregate statistics
-        stats = {}
-        max_gap = 0.0
+        # Aggregate
+        all_predictions = torch.cat(all_predictions, dim=0).numpy()
+        all_targets = torch.cat(all_targets, dim=0).numpy()
         
+        protected_indicators = {}
         for attr_idx in self.protected_attr_idx:
-            preds_0 = all_preds[attr_idx][0]
-            preds_1 = all_preds[attr_idx][1]
-            
-            if len(preds_0) > 0 and len(preds_1) > 0:
-                mean_pred_0 = np.mean(preds_0)
-                mean_pred_1 = np.mean(preds_1)
-                
-                if self.fairness_criterion == 'mean_residual':
-                    targets_0 = all_targets[attr_idx][0]
-                    targets_1 = all_targets[attr_idx][1]
-                    
-                    if len(targets_0) > 0 and len(targets_1) > 0:
-                        mean_residual_0 = np.mean(np.array(targets_0) - np.array(preds_0))
-                        mean_residual_1 = np.mean(np.array(targets_1) - np.array(preds_1))
-                        gap = max(abs(mean_residual_0), abs(mean_residual_1))
-                        stats[f'mean_residual_attr_{attr_idx}_group_0'] = mean_residual_0
-                        stats[f'mean_residual_attr_{attr_idx}_group_1'] = mean_residual_1
-                    else:
-                        gap = float('nan')
-                else:
-                    gap = abs(mean_pred_0 - mean_pred_1)
-                
-                stats[f'aggregate_gap_attr_{attr_idx}'] = gap
-                stats[f'mean_pred_attr_{attr_idx}_group_0'] = mean_pred_0
-                stats[f'mean_pred_attr_{attr_idx}_group_1'] = mean_pred_1
-                
-                if not np.isnan(gap):
-                    max_gap = max(max_gap, gap)
+            protected_indicators[attr_idx] = torch.cat(all_protected[attr_idx], dim=0).numpy()
         
-        stats['aggregate_gap'] = max_gap
-        stats['lambda_max'] = self.lambda_max
-        stats['total_samples'] = self.cumulative_samples
+        aggregate_gap = self.fairness_metric.compute_gap(
+            all_predictions, all_targets, protected_indicators
+        )
         
-        # Theoretical bound from Theorem 2.2
-        if self.cumulative_samples > 0 and self.eta_0 > 0:
-            eta_final = self.get_adaptive_eta()
-            stats['theoretical_bound'] = self.fairness_tolerance + \
-                (self.lambda_max / (eta_final * self.cumulative_samples))
-        else:
-            stats['theoretical_bound'] = float('inf')
+        # per-attribute gaps
+        per_attr_gaps = {}
+        for attr_idx in self.protected_attr_idx:
+            single_attr_indicators = {attr_idx: protected_indicators[attr_idx]}
+            per_attr_gaps[attr_idx] = self.fairness_metric.compute_gap(
+                all_predictions, all_targets, single_attr_indicators
+            )
         
-        self.train()
-        return stats
+        return {
+            'aggregate_gap': aggregate_gap,
+            'per_attribute_gaps': per_attr_gaps,
+            'lambda_max': self.lambda_max,
+            'lambda_final': self.lambda_dual,
+            'total_samples': self.cumulative_samples,
+            'num_batches': self.dual_update_count,
+            'fairness_tolerance': self.fairness_tolerance
+        }

@@ -1,597 +1,390 @@
 """
-Utility functions for fairness evaluation and data processing.
-
-This module provides:
-- Fairness metric computation (demographic parity, equalized odds, equalized residuals)
-- Data preprocessing utilities
-- Stratified data splitting for fairness experiments
+Utility functions for fairness evaluation
 """
 
 import numpy as np
-from typing import Tuple, Dict, Optional, List, Union
+import torch
+from torch.utils.data import DataLoader, TensorDataset
+from typing import Optional, Tuple, Union, List  
+from fairness_training.fairness_metrics import FairnessMetric, MeanPredictionParity, MeanResidualFairness, EqualizedOdds
 
-
-# =============================================================================
-# FAIRNESS METRICS
-# =============================================================================
-
-def compute_demographic_parity(
-    predictions: np.ndarray,
-    protected_attr: np.ndarray,
-    threshold: float = 0.5
-) -> Dict[str, float]:
+def get_fairness_metric(
+    metric: Union[str, FairnessMetric],
+    num_protected_attrs: int = 1
+) -> FairnessMetric:
     """
-    Compute demographic parity metrics.
-    
-    Demographic parity is satisfied when the selection rate is equal across groups:
-    P(Ŷ=1 | A=0) = P(Ŷ=1 | A=1)
+    Get a fairness metric instance from a string name or return the metric if already instantiated.
     
     Args:
-        predictions: Predicted probabilities or scores
-        protected_attr: Binary protected attribute (0 or 1)
-        threshold: Decision threshold for binary predictions
+        metric: Either a string ('mean_pred', 'mean_residual', 'equalized_odds') 
+                or a FairnessMetric instance
+        num_protected_attrs: Number of protected attributes (used if creating from string)
         
     Returns:
-        Dictionary with demographic parity metrics
+        FairnessMetric instance
     """
-    binary_preds = (predictions >= threshold).astype(int).flatten()
-    protected = protected_attr.flatten()
+    if isinstance(metric, FairnessMetric):
+        return metric
     
-    # Selection rates per group
-    mask_0 = protected == 0
-    mask_1 = protected == 1
+    if isinstance(metric, str):
+        metric_map = {
+            'mean_pred': MeanPredictionParity,
+            'mean_prediction_parity': MeanPredictionParity,
+            'demographic_parity': MeanPredictionParity,
+            'mean_residual': MeanResidualFairness,
+            'mean_residual_fairness': MeanResidualFairness,
+            'equalized_residuals': MeanResidualFairness,
+            'equalized_odds': EqualizedOdds,
+        }
+        
+        metric_lower = metric.lower()
+        if metric_lower not in metric_map:
+            raise ValueError(
+                f"Unknown fairness metric: '{metric}'. "
+                f"Available options: {list(metric_map.keys())} or provide a FairnessMetric instance."
+            )
+        
+        return metric_map[metric_lower](num_protected_attrs=num_protected_attrs)
     
-    rate_0 = binary_preds[mask_0].mean() if mask_0.sum() > 0 else 0.0
-    rate_1 = binary_preds[mask_1].mean() if mask_1.sum() > 0 else 0.0
-    
-    # Demographic parity difference
-    dp_diff = abs(rate_0 - rate_1)
-    
-    # Demographic parity ratio (min/max)
-    if rate_0 > 0 and rate_1 > 0:
-        dp_ratio = min(rate_0, rate_1) / max(rate_0, rate_1)
-    else:
-        dp_ratio = 0.0
+    raise TypeError(
+        f"metric must be a string or FairnessMetric instance, got {type(metric)}"
+    )
 
-    return {
-        'selection_rate_group_0': rate_0,
-        'selection_rate_group_1': rate_1,
-        'demographic_parity_diff': dp_diff,
-        'demographic_parity_ratio': dp_ratio
-    }
-
-
-def compute_mean_prediction_parity(
-    predictions: np.ndarray,
-    protected_attr: np.ndarray
-) -> Dict[str, float]:
+def create_dataloaders(
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    X_val: Optional[np.ndarray] = None,
+    y_val: Optional[np.ndarray] = None,
+    X_test: Optional[np.ndarray] = None,
+    y_test: Optional[np.ndarray] = None,
+    batch_size_train: int = 32,
+    batch_size_eval: Optional[int] = None,
+    shuffle_train: bool = True
+) -> Tuple[DataLoader, ...]:
     """
-    Compute mean prediction parity (expected conditional parity).
-    
-    This is the fairness criterion used in the paper for the large-batch regime:
-    |E[Ŷ | A=0] - E[Ŷ | A=1]| ≤ ε
+    Helper function to create PyTorch DataLoaders.
     
     Args:
-        predictions: Predicted values (continuous or probabilities)
-        protected_attr: Binary protected attribute (0 or 1)
+        X_train, y_train: Training data
+        X_val, y_val: Validation data (optional)
+        X_test, y_test: Test data (optional)
+        batch_size_train: Batch size for training (should be >= b_tau for hard constraints)
+        batch_size_eval: Batch size for validation and test (if None, uses batch_size_train)
+        shuffle_train: Whether to shuffle training data
         
     Returns:
-        Dictionary with mean prediction parity metrics
+        Tuple of DataLoaders (train, val, test) - only created if data provided
     """
-    predictions = predictions.flatten()
-    protected = protected_attr.flatten()
+    if batch_size_eval is None:
+        batch_size_eval = batch_size_train
     
-    mask_0 = protected == 0
-    mask_1 = protected == 1
+    loaders = []
     
-    mean_0 = predictions[mask_0].mean() if mask_0.sum() > 0 else 0.0
-    mean_1 = predictions[mask_1].mean() if mask_1.sum() > 0 else 0.0
+    # Training loader
+    X_train_t = torch.tensor(X_train, dtype=torch.float32)
+    y_train_t = torch.tensor(y_train, dtype=torch.float32)
+    if y_train_t.dim() == 1:
+        y_train_t = y_train_t.unsqueeze(1)
+    train_dataset = TensorDataset(X_train_t, y_train_t)
+    train_loader = DataLoader(
+        train_dataset, 
+        batch_size=batch_size_train, 
+        shuffle=shuffle_train,
+        drop_last=True
+    )
+    loaders.append(train_loader)
     
-    std_0 = predictions[mask_0].std() if mask_0.sum() > 0 else 0.0
-    std_1 = predictions[mask_1].std() if mask_1.sum() > 0 else 0.0
-    
-    gap = abs(mean_0 - mean_1)
-    
-    return {
-        'mean_pred_group_0': mean_0,
-        'mean_pred_group_1': mean_1,
-        'std_pred_group_0': std_0,
-        'std_pred_group_1': std_1,
-        'mean_prediction_gap': gap,
-        'n_group_0': int(mask_0.sum()),
-        'n_group_1': int(mask_1.sum())
-    }
-
-
-def compute_equalized_residuals(
-    predictions: np.ndarray,
-    targets: np.ndarray,
-    protected_attr: np.ndarray
-) -> Dict[str, float]:
-    """
-    Compute equalized residuals metrics for regression fairness.
-    
-    Equalized residuals is satisfied when prediction errors have the same
-    distribution across protected groups:
-    - E[Y - Ŷ | A=0] ≈ 0  (mean residual for group 0)
-    - E[Y - Ŷ | A=1] ≈ 0  (mean residual for group 1)
-    
-    This ensures the model doesn't systematically over or under-predict
-    for any protected group.
-    
-    Args:
-        predictions: Predicted values (continuous)
-        targets: True target values (continuous)
-        protected_attr: Binary protected attribute (0 or 1)
-        
-    Returns:
-        Dictionary with equalized residuals metrics
-    """
-    predictions = predictions.flatten()
-    targets = targets.flatten()
-    protected = protected_attr.flatten()
-    
-    # Compute residuals (errors)
-    residuals = targets - predictions
-    
-    # Split by protected group
-    mask_0 = protected == 0
-    mask_1 = protected == 1
-    
-    residuals_0 = residuals[mask_0]
-    residuals_1 = residuals[mask_1]
-    
-    # Mean residuals per group (systematic bias)
-    mean_residual_0 = residuals_0.mean() if len(residuals_0) > 0 else 0.0
-    mean_residual_1 = residuals_1.mean() if len(residuals_1) > 0 else 0.0
-
-    # Fairness metrics
-    mean_residual_diff = abs(mean_residual_0 - mean_residual_1)
-    
-    return {
-        # Per-group statistics
-        'mean_residual_group_0': mean_residual_0,
-        'mean_residual_group_1': mean_residual_1,
-        # Fairness metrics
-        'mean_residual_diff': mean_residual_diff,
-        'n_group_0': int(mask_0.sum()),
-        'n_group_1': int(mask_1.sum())
-    }
-
-
-def compute_equalized_odds(
-    predictions: np.ndarray,
-    targets: np.ndarray,
-    protected_attr: np.ndarray
-) -> Dict[str, float]:
-    """
-    Compute equalized odds metrics based on expected values.
-    
-    Equalized odds is satisfied when the average predicted value is equal 
-    across protected groups, separately for each true outcome:
-    E[Ŷ | Y=0, A=0] = E[Ŷ | Y=0, A=1]  (for negative class)
-    E[Ŷ | Y=1, A=0] = E[Ŷ | Y=1, A=1]  (for positive class)
-    
-    Args:
-        predictions: Predicted probabilities or scores (continuous)
-        targets: True labels (binary: 0 or 1)
-        protected_attr: Binary protected attribute (0 or 1)
-        
-    Returns:
-        Dictionary with equalized odds metrics:
-        - Mean predictions per group per outcome
-        - Absolute differences (fairness gaps)
-    """
-    predictions = predictions.flatten()
-    targets = targets.flatten()
-    protected = protected_attr.flatten()
-    
-    # Binarize targets if needed
-    targets = (targets > 0.5).astype(int)
-    
-    metrics = {}
-    
-    # Compute mean predictions for each (protected group, outcome) combination
-    for y_class in [0, 1]:
-        # Mask for this outcome class
-        outcome_mask = targets == y_class
-        
-        for group in [0, 1]:
-            # Mask for this protected group
-            group_mask = protected == group
-            
-            # Combined mask
-            combined_mask = outcome_mask & group_mask
-            
-            if combined_mask.sum() == 0:
-                # No samples in this combination
-                metrics[f'mean_pred_y{y_class}_group{group}'] = np.nan
-                metrics[f'n_y{y_class}_group{group}'] = 0
-                continue
-            
-            # Average prediction for this (outcome, group) combination
-            mean_pred = predictions[combined_mask].mean()
-            metrics[f'mean_pred_y{y_class}_group{group}'] = mean_pred
-            metrics[f'n_y{y_class}_group{group}'] = int(combined_mask.sum())
-        
-        # Compute fairness gap for this outcome class
-        key_0 = f'mean_pred_y{y_class}_group0'
-        key_1 = f'mean_pred_y{y_class}_group1'
-        
-        if key_0 in metrics and key_1 in metrics:
-            if not (np.isnan(metrics[key_0]) or np.isnan(metrics[key_1])):
-                diff = abs(metrics[key_0] - metrics[key_1])
-                metrics[f'eq_odds_diff_y{y_class}'] = diff
-            else:
-                metrics[f'eq_odds_diff_y{y_class}'] = np.nan
-    
-    # Overall equalized odds violation (maximum gap across both outcome classes)
-    gaps = []
-    for y_class in [0, 1]:
-        gap_key = f'eq_odds_diff_y{y_class}'
-        if gap_key in metrics and not np.isnan(metrics[gap_key]):
-            gaps.append(metrics[gap_key])
-    
-    if gaps:
-        metrics['equalized_odds_diff'] = max(gaps)
-    else:
-        metrics['equalized_odds_diff'] = np.nan
-    
-    return metrics
-
-
-def compute_all_fairness_metrics(
-    predictions: np.ndarray,
-    targets: np.ndarray,
-    protected_attr: np.ndarray,
-    threshold: float = 0.5,
-    is_classification: bool = True
-) -> Dict[str, float]:
-    """
-    Compute all fairness metrics in one call.
-    
-    Args:
-        predictions: Model predictions
-        targets: Ground truth targets
-        protected_attr: Binary protected attribute
-        threshold: Decision threshold for classification
-        is_classification: Whether this is a classification task
-        
-    Returns:
-        Combined dictionary with all fairness metrics
-    """
-    metrics = {}
-    
-    # Mean prediction parity (always applicable)
-    mp_metrics = compute_mean_prediction_parity(predictions, protected_attr)
-    metrics.update({f'mp_{k}': v for k, v in mp_metrics.items()})
-    
-    if is_classification:
-        # Demographic parity
-        dp_metrics = compute_demographic_parity(predictions, protected_attr, threshold)
-        metrics.update({f'dp_{k}': v for k, v in dp_metrics.items()})
-        
-        # Equalized odds
-        eo_metrics = compute_equalized_odds(predictions, targets, protected_attr)
-        metrics.update({f'eo_{k}': v for k, v in eo_metrics.items()})
-    else:
-        # Equalized residuals (for regression)
-        er_metrics = compute_equalized_residuals(predictions, targets, protected_attr)
-        metrics.update({f'er_{k}': v for k, v in er_metrics.items()})
-    
-    return metrics
-
-
-# =============================================================================
-# DATA PREPROCESSING
-# =============================================================================
-
-def prepare_data_with_protected_attr(
-    X: np.ndarray,
-    y: np.ndarray,
-    protected_col: int,
-    train_ratio: float = 0.6,
-    val_ratio: float = 0.2,
-    seed: Optional[int] = None
-) -> Tuple:
-    """
-    Split data ensuring protected attribute is binary.
-    
-    Args:
-        X: Feature matrix
-        y: Target vector
-        protected_col: Index of protected attribute column
-        train_ratio: Proportion of data for training
-        val_ratio: Proportion of data for validation
-        seed: Random seed
-        
-    Returns:
-        (X_train, y_train, X_val, y_val, X_test, y_test)
-    """
-    if seed is not None:
-        np.random.seed(seed)
-    
-    # Verify protected attribute is binary
-    unique_vals = np.unique(X[:, protected_col])
-    if not np.array_equal(unique_vals, [0, 1]):
-        raise ValueError(
-            f"Protected attribute must be binary (0/1). Found values: {unique_vals}"
+    # Validation loader
+    if X_val is not None and y_val is not None:
+        X_val_t = torch.tensor(X_val, dtype=torch.float32)
+        y_val_t = torch.tensor(y_val, dtype=torch.float32)
+        if y_val_t.dim() == 1:
+            y_val_t = y_val_t.unsqueeze(1)
+        val_dataset = TensorDataset(X_val_t, y_val_t)
+        val_loader = DataLoader(
+            val_dataset, 
+            batch_size=batch_size_eval,
+            shuffle=False,
+            drop_last=True
         )
+        loaders.append(val_loader)
     
-    # Shuffle indices
-    n = len(X)
-    indices = np.random.permutation(n)
+    # Test loader
+    if X_test is not None and y_test is not None:
+        X_test_t = torch.tensor(X_test, dtype=torch.float32)
+        y_test_t = torch.tensor(y_test, dtype=torch.float32)
+        if y_test_t.dim() == 1:
+            y_test_t = y_test_t.unsqueeze(1)
+        test_dataset = TensorDataset(X_test_t, y_test_t)
+        test_loader = DataLoader(
+            test_dataset, 
+            batch_size=batch_size_eval,
+            shuffle=False
+        )
+        loaders.append(test_loader)
     
-    # Split indices
-    train_end = int(n * train_ratio)
-    val_end = int(n * (train_ratio + val_ratio))
-    
-    train_idx = indices[:train_end]
-    val_idx = indices[train_end:val_end]
-    test_idx = indices[val_end:]
-    
-    # Create splits
-    X_train, y_train = X[train_idx], y[train_idx]
-    X_val, y_val = X[val_idx], y[val_idx]
-    X_test, y_test = X[test_idx], y[test_idx]
-    
-    # Verify both groups present in each split
-    for name, data in [('train', X_train), ('val', X_val), ('test', X_test)]:
-        groups = np.unique(data[:, protected_col])
-        if len(groups) < 2:
-            print(f"Warning: {name} set only has group(s): {groups}")
-    
-    return X_train, y_train, X_val, y_val, X_test, y_test
+    return tuple(loaders)
 
 
-def binarize_protected_attribute(
-    data: np.ndarray,
-    column: int,
-    positive_values: Union[List, np.ndarray]
-) -> np.ndarray:
+def create_stratified_dataloaders(
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    X_val: Optional[np.ndarray] = None,
+    y_val: Optional[np.ndarray] = None,
+    X_test: Optional[np.ndarray] = None,
+    y_test: Optional[np.ndarray] = None,
+    protected_attr_idx: Union[int, List[int]] = 0,
+    batch_size_train: int = 2000,
+    batch_size_eval: int = 2000
+) -> Tuple[DataLoader, ...]:
     """
-    Convert a categorical protected attribute to binary.
+    Create dataloaders with stratified sampling to maintain constant group ratios.
+    
+    Supports stratification on 1 or 2 protected attributes. With 2 attributes,
+    maintains proportions for all 4 intersectional groups (00, 01, 10, 11).
+    
+    Samples that don't fit into complete batches are dropped with a warning.
+    
+    This is recommended for training.
     
     Args:
-        data: Feature matrix
-        column: Index of column to binarize
-        positive_values: Values that should be mapped to 1
+        X_train, y_train: Training data
+        X_val, y_val: Validation data (optional)  
+        X_test, y_test: Test data (optional)
+        protected_attr_idx: Index or list of indices (max 2) of protected attributes
+        batch_size_train: Batch size for training (should be >= b_tau)
+        batch_size_eval: Batch size for validation/test
         
     Returns:
-        Modified feature matrix with binary protected attribute
-    """
-    data = data.copy()
-    binary_col = np.isin(data[:, column], positive_values).astype(float)
-    data[:, column] = binary_col
-    return data
-
-
-# =============================================================================
-# SYNTHETIC DATA GENERATION
-# =============================================================================
-
-def generate_synthetic_fairness_data(
-    n_samples: int = 10000,
-    n_features: int = 20,
-    protected_ratio: float = 0.3,
-    group_bias: float = 2.0,
-    noise_std: float = 0.5,
-    seed: Optional[int] = None
-) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Generate synthetic data for fairness experiments.
-    
-    Creates a dataset where:
-    - First column is binary protected attribute
-    - Some features are correlated with protected attribute
-    - Target has systematic bias based on protected attribute
-    
-    Args:
-        n_samples: Number of samples
-        n_features: Total number of features (including protected)
-        protected_ratio: Proportion in protected group (A=1)
-        group_bias: Bias added to target for protected group
-        noise_std: Standard deviation of noise
-        seed: Random seed
+        Tuple of DataLoaders with stratified batches
         
-    Returns:
-        X: Feature matrix with protected attribute in column 0
-        y: Target vector
-    """
-    if seed is not None:
-        np.random.seed(seed)
-    
-    # Protected attribute (binary)
-    protected = np.random.binomial(1, protected_ratio, n_samples)
-    
-    # Features (some correlated with protected attribute)
-    X_features = np.random.randn(n_samples, n_features - 1)
-    
-    # Add correlation with protected attribute for some features
-    for i in range(min(5, n_features - 1)):
-        X_features[:, i] += 0.3 * protected * (i + 1)
-    
-    # Combine: protected attribute as first column
-    X = np.hstack([protected.reshape(-1, 1), X_features]).astype(np.float32)
-    
-    # Generate target with coefficients and group bias
-    coefficients = np.random.randn(n_features - 1)
-    coefficients[:5] = [3.0, -2.0, 1.5, -1.0, 0.5]  # Known coefficients for first features
-    
-    y_true = X_features @ coefficients + np.random.randn(n_samples) * noise_std
-    y_biased = y_true + group_bias * protected  # Add systematic bias
-    y = y_biased.astype(np.float32)
-    
-    return X, y
-
-
-def generate_synthetic_classification_data(
-    n_samples: int = 10000,
-    n_features: int = 20,
-    protected_ratio: float = 0.3,
-    base_positive_rate: float = 0.25,
-    group_positive_rate_diff: float = 0.1,
-    seed: Optional[int] = None
-) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Generate synthetic binary classification data for fairness experiments.
-    
-    Creates a dataset where the positive rate differs between groups,
-    which is typical in fairness-critical applications.
-    
-    Args:
-        n_samples: Number of samples
-        n_features: Total number of features (including protected)
-        protected_ratio: Proportion in protected group (A=1)
-        base_positive_rate: Base rate of positive class
-        group_positive_rate_diff: Difference in positive rate for protected group
-        seed: Random seed
+    Example:
+        # Single attribute stratification
+        loaders = create_stratified_dataloaders(X, y, protected_attr_idx=0)
         
-    Returns:
-        X: Feature matrix with protected attribute in column 0
-        y: Binary target vector
+        # Two attribute stratification (maintains all 4 group proportions)
+        loaders = create_stratified_dataloaders(X, y, protected_attr_idx=[0, 1])
     """
-    if seed is not None:
-        np.random.seed(seed)
-    
-    # Protected attribute (binary)
-    protected = np.random.binomial(1, protected_ratio, n_samples)
-    
-    # Features
-    X_features = np.random.randn(n_samples, n_features - 1)
-    
-    # Add some correlation with protected attribute
-    for i in range(min(3, n_features - 1)):
-        X_features[:, i] += 0.5 * protected
-    
-    # Combine: protected attribute as first column
-    X = np.hstack([protected.reshape(-1, 1), X_features]).astype(np.float32)
-    
-    # Generate latent score
-    coefficients = np.zeros(n_features - 1)
-    coefficients[:5] = [1.0, -0.5, 0.8, -0.3, 0.6]
-    latent_score = X_features @ coefficients
-    
-    # Adjust threshold for each group to create different positive rates
-    group_0_threshold = np.percentile(latent_score[protected == 0], 
-                                       100 * (1 - base_positive_rate))
-    group_1_threshold = np.percentile(latent_score[protected == 1], 
-                                       100 * (1 - base_positive_rate - group_positive_rate_diff))
-    
-    # Generate binary labels
-    y = np.zeros(n_samples, dtype=np.float32)
-    y[(protected == 0) & (latent_score >= group_0_threshold)] = 1
-    y[(protected == 1) & (latent_score >= group_1_threshold)] = 1
-    
-    return X, y
-
-
-# =============================================================================
-# EVALUATION UTILITIES
-# =============================================================================
-
-def print_fairness_report(
-    predictions: np.ndarray,
-    targets: np.ndarray,
-    protected_attr: np.ndarray,
-    protected_name: str = "Protected Attribute",
-    is_classification: bool = True
-):
-    """
-    Print a comprehensive fairness report.
-    
-    Args:
-        predictions: Model predictions
-        targets: Ground truth targets  
-        protected_attr: Binary protected attribute
-        protected_name: Name of the protected attribute
-        is_classification: Whether this is a classification task
-    """
-    print("\n" + "="*60)
-    print(f"FAIRNESS REPORT: {protected_name}")
-    print("="*60)
-    
-    # Group statistics
-    mask_0 = protected_attr.flatten() == 0
-    mask_1 = ~mask_0
-    
-    print(f"\nGroup Distribution:")
-    print(f"  Group 0: {mask_0.sum()} samples ({100*mask_0.mean():.1f}%)")
-    print(f"  Group 1: {mask_1.sum()} samples ({100*mask_1.mean():.1f}%)")
-    
-    # Mean prediction parity
-    print(f"\nMean Prediction Parity:")
-    mp = compute_mean_prediction_parity(predictions, protected_attr)
-    print(f"  E[Ŷ | A=0] = {mp['mean_pred_group_0']:.4f}")
-    print(f"  E[Ŷ | A=1] = {mp['mean_pred_group_1']:.4f}")
-    print(f"  Gap: {mp['mean_prediction_gap']:.4f}")
-    
-    if is_classification:
-        # Demographic parity
-        print(f"\nDemographic Parity:")
-        dp = compute_demographic_parity(predictions, protected_attr)
-        print(f"  P(Ŷ=1 | A=0) = {dp['selection_rate_group_0']:.4f}")
-        print(f"  P(Ŷ=1 | A=1) = {dp['selection_rate_group_1']:.4f}")
-        print(f"  Gap: {dp['demographic_parity_diff']:.4f}")
-        print(f"  Ratio: {dp['demographic_parity_ratio']:.4f}")
-        
-        # Equalized odds
-        print(f"\nEqualized Odds:")
-        eo = compute_equalized_odds(predictions, targets, protected_attr)
-        print(f"  E[Ŷ | Y=0, A=0] = {eo.get('mean_pred_y0_group0', np.nan):.4f}")
-        print(f"  E[Ŷ | Y=0, A=1] = {eo.get('mean_pred_y0_group1', np.nan):.4f}")
-        print(f"  E[Ŷ | Y=1, A=0] = {eo.get('mean_pred_y1_group0', np.nan):.4f}")
-        print(f"  E[Ŷ | Y=1, A=1] = {eo.get('mean_pred_y1_group1', np.nan):.4f}")
-        print(f"  Max Gap: {eo['equalized_odds_diff']:.4f}")
+    # Normalize protected_attr_idx to list
+    if isinstance(protected_attr_idx, int):
+        attr_indices = [protected_attr_idx]
     else:
-        # Equalized residuals
-        print(f"\nEqualized Residuals:")
-        er = compute_equalized_residuals(predictions, targets, protected_attr)
-        print(f"  E[Y - Ŷ | A=0] = {er['mean_residual_group_0']:.4f}")
-        print(f"  E[Y - Ŷ | A=1] = {er['mean_residual_group_1']:.4f}")
-        print(f"  Gap: {er['mean_residual_diff']:.4f}")
-        print(f"  Max |mean residual|: {er['max_abs_mean_residual']:.4f}")
+        attr_indices = list(protected_attr_idx)
     
-    print("="*60 + "\n")
-
-
-def check_fairness_constraint(
-    predictions: np.ndarray,
-    protected_attr: np.ndarray,
-    tolerance: float,
-    fairness_criterion: str = 'mean_pred',
-    targets: Optional[np.ndarray] = None
-) -> Tuple[bool, float]:
-    """
-    Check if fairness constraint is satisfied.
+    if len(attr_indices) > 2:
+        raise ValueError("Stratification supports at most 2 protected attributes")
     
-    Args:
-        predictions: Model predictions
-        protected_attr: Binary protected attribute
-        tolerance: Maximum allowed fairness gap
-        fairness_criterion: 'mean_pred' or 'mean_residual'
-        targets: Required if fairness_criterion='mean_residual'
+    def create_stratified_batches_single(X, attr_idx, batch_size, split_name):
+        """Stratify on a single protected attribute (2 groups)."""
+        protected = X[:, attr_idx]
         
-    Returns:
-        (is_satisfied, gap): Whether constraint is satisfied and the actual gap
-    """
-    predictions = predictions.flatten()
-    protected = protected_attr.flatten()
+        # Validate that attribute is binary
+        unique_vals = np.unique(protected)
+        if not (set(unique_vals) <= {0, 1}):
+            raise ValueError(
+                f"Protected attribute at index {attr_idx} is not binary (0/1). "
+                f"Found unique values: {unique_vals[:10]}{'...' if len(unique_vals) > 10 else ''}. "
+                f"Ensure your protected attribute column contains only 0 and 1 values."
+            )
+        
+        idx_0 = np.where(protected == 0)[0]
+        idx_1 = np.where(protected == 1)[0]
+        
+        if len(idx_0) == 0 or len(idx_1) == 0:
+            raise ValueError(
+                f"Protected attribute at index {attr_idx} must have samples in both groups. "
+                f"Found: group 0 = {len(idx_0)} samples, group 1 = {len(idx_1)} samples."
+            )
+        
+        total = len(idx_0) + len(idx_1)
+        ratio_0 = len(idx_0) / total
+        
+
+        n_0_per_batch = int(batch_size * ratio_0)
+        n_1_per_batch = batch_size - n_0_per_batch
+        if n_0_per_batch < 1 or n_1_per_batch < 1:
+            raise ValueError(f"Batch size {batch_size} too small for group proportions")
+        
+        np.random.shuffle(idx_0)
+        np.random.shuffle(idx_1)
+        
+        # Calculate how many complete batches we can make + how many dropped
+        num_batches_0 = len(idx_0) // n_0_per_batch
+        num_batches_1 = len(idx_1) // n_1_per_batch
+        num_batches = min(num_batches_0, num_batches_1)
+        
+        used_0 = num_batches * n_0_per_batch
+        used_1 = num_batches * n_1_per_batch
+        dropped_0 = len(idx_0) - used_0
+        dropped_1 = len(idx_1) - used_1
+        total_dropped = dropped_0 + dropped_1
+        
+        if total_dropped > 0:
+            print(f"Warning: Dropping {total_dropped} samples ({dropped_0} from group 0, {dropped_1} from group 1) "
+                  f"to ensure complete batches")
+        
+        # Create batches
+        batches = []
+        for b in range(num_batches):
+            batch_idx_0 = idx_0[b * n_0_per_batch : (b + 1) * n_0_per_batch]
+            batch_idx_1 = idx_1[b * n_1_per_batch : (b + 1) * n_1_per_batch]
+            
+            batch_indices = np.concatenate([batch_idx_0, batch_idx_1])
+            np.random.shuffle(batch_indices)
+            batches.append(batch_indices)
+        
+        group_counts = {0: n_0_per_batch, 1: n_1_per_batch}
+        return batches, group_counts
     
-    mask_0 = protected == 0
-    mask_1 = ~mask_0
+    def create_stratified_batches_dual(X, attr_idx_1, attr_idx_2, batch_size, split_name):
+        """Stratify on two protected attributes (4 intersectional groups)."""
+        prot_1 = X[:, attr_idx_1]
+        prot_2 = X[:, attr_idx_2]
+        
+        # Ensure binary
+        unique_1 = np.unique(prot_1)
+        unique_2 = np.unique(prot_2)
+        
+        if not (set(unique_1) <= {0, 1}):
+            raise ValueError(
+                f"Protected attribute at index {attr_idx_1} is not binary (0/1). "
+                f"Found unique values: {unique_1[:10]}{'...' if len(unique_1) > 10 else ''}. "
+                f"For continuous features, use single-attribute stratification."
+            )
+        if not (set(unique_2) <= {0, 1}):
+            raise ValueError(
+                f"Protected attribute at index {attr_idx_2} is not binary (0/1). "
+                f"Found unique values: {unique_2[:10]}{'...' if len(unique_2) > 10 else ''}. "
+                f"For continuous features, use single-attribute stratification."
+            )
+        
+        # Find indices for all 4 intersectional groups
+        idx_00 = np.where((prot_1 == 0) & (prot_2 == 0))[0]
+        idx_01 = np.where((prot_1 == 0) & (prot_2 == 1))[0]
+        idx_10 = np.where((prot_1 == 1) & (prot_2 == 0))[0]
+        idx_11 = np.where((prot_1 == 1) & (prot_2 == 1))[0]
+        
+        groups = {'00': idx_00, '01': idx_01, '10': idx_10, '11': idx_11}
+        total = sum(len(idx) for idx in groups.values())
+        
+        if total == 0:
+            raise ValueError(
+                f"No samples found in any intersectional group. "
+                f"Check that columns {attr_idx_1} and {attr_idx_2} contain binary (0/1) values."
+            )
+        
+        # Calculate per-batch counts for each group
+        counts_per_batch = {}
+        remaining = batch_size
+        
+        for i, (name, idx) in enumerate(groups.items()):
+            ratio = len(idx) / total
+            if i < 3:  # First 3 groups: use floor
+                count = int(batch_size * ratio)
+                counts_per_batch[name] = max(1, count)  # Ensure at least 1
+                remaining -= counts_per_batch[name]
+            else:  # Last group: take remainder to ensure exact batch size
+                counts_per_batch[name] = max(1, remaining)
+        
+        # Verify batch size
+        actual_batch = sum(counts_per_batch.values())
+        if actual_batch != batch_size:
+            # Adjust the largest group
+            diff = batch_size - actual_batch
+            largest_group = max(counts_per_batch, key=counts_per_batch.get)
+            counts_per_batch[largest_group] += diff
+        
+        for name in groups:
+            np.random.shuffle(groups[name])
+        
+        # Calculate how many complete batches we can make + # dropped samples
+        num_batches_per_group = {
+            name: len(groups[name]) // counts_per_batch[name] 
+            for name in groups
+        }
+        num_batches = min(num_batches_per_group.values())
+        
+        total_dropped = 0
+        dropped_per_group = {}
+        for name in groups:
+            used = num_batches * counts_per_batch[name]
+            dropped = len(groups[name]) - used
+            dropped_per_group[name] = dropped
+            total_dropped += dropped
+        
+        if total_dropped > 0:
+            dropped_str = ", ".join([f"group {k}: {v}" for k, v in dropped_per_group.items() if v > 0])
+            print(f"    Warning: Dropping {total_dropped} samples ({dropped_str}) to ensure complete batches")
+        
+        # Create batches
+        batches = []
+        for b in range(num_batches):
+            batch_indices_list = []
+            for name in groups:
+                start = b * counts_per_batch[name]
+                end = (b + 1) * counts_per_batch[name]
+                batch_indices_list.append(groups[name][start:end])
+            
+            batch_indices = np.concatenate(batch_indices_list)
+            np.random.shuffle(batch_indices)
+            batches.append(batch_indices)
+        
+        return batches, counts_per_batch
     
-    if fairness_criterion == 'mean_residual':
-        if targets is None:
-            raise ValueError("targets required for mean_residual criterion")
-        targets = targets.flatten()
-        residual_0 = (targets[mask_0] - predictions[mask_0]).mean()
-        residual_1 = (targets[mask_1] - predictions[mask_1]).mean()
-        gap = max(abs(residual_0), abs(residual_1))
-    else:  # mean_pred
-        mean_0 = predictions[mask_0].mean() if mask_0.sum() > 0 else 0
-        mean_1 = predictions[mask_1].mean() if mask_1.sum() > 0 else 0
-        gap = abs(mean_0 - mean_1)
+    def create_loader(X, y, batch_size, split_name):
+        """Create a single stratified dataloader."""
+        print(f"\n=== Creating stratified {split_name} batches ===")
+        print(f"  Original samples: {len(X)}")
+        
+        if len(attr_indices) == 1:
+            batches, group_counts = create_stratified_batches_single(
+                X, attr_indices[0], batch_size, split_name
+            )
+            print(f"  Per-batch allocation: group 0={group_counts[0]}, group 1={group_counts[1]}")
+        else:
+            batches, group_counts = create_stratified_batches_dual(
+                X, attr_indices[0], attr_indices[1], batch_size, split_name
+            )
+            counts_str = ", ".join([f"group {k}={v}" for k, v in group_counts.items()])
+            print(f"  Per-batch allocation: {counts_str}")
+        
+        print(f"  Created {len(batches)} batches of size {batch_size}")
+        print(f"  Total samples used: {len(batches) * batch_size}")
+        
+        if len(batches) == 0:
+            raise ValueError(f"No complete batches could be created for {split_name}. "
+                           f"Try reducing batch_size or adding more data.")
+        
+        # Reorder data according to batches
+        all_indices = np.concatenate(batches)
+        X_ordered = torch.tensor(X[all_indices], dtype=torch.float32)
+        y_ordered = torch.tensor(y[all_indices], dtype=torch.float32)
+        if y_ordered.dim() == 1:
+            y_ordered = y_ordered.unsqueeze(1)
+        
+        dataset = TensorDataset(X_ordered, y_ordered)
+        
+        # Simple sequential batching since data is already ordered
+        loader = DataLoader(
+            dataset,
+            batch_size=batch_size,
+            shuffle=False,  # Data already arranged in stratified batches
+            drop_last=False  # We've already ensured complete batches
+        )
+        
+        return loader
     
-    is_satisfied = gap <= tolerance
-    return is_satisfied, gap
+    loaders = []
+    
+    train_loader = create_loader(X_train, y_train, batch_size_train, "training")
+    loaders.append(train_loader)
+    
+    if X_val is not None and y_val is not None:
+        val_loader = create_loader(X_val, y_val, batch_size_eval, "validation")
+        loaders.append(val_loader)
+    
+    if X_test is not None and y_test is not None:
+        test_loader = create_loader(X_test, y_test, batch_size_eval, "test")
+        loaders.append(test_loader)
+    
+    return tuple(loaders)
