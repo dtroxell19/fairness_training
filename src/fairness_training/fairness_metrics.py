@@ -539,7 +539,6 @@ class EqualizedOdds(FairnessMetric):
         
         predictions = predictions.flatten()
         targets = targets.flatten()
-        
         # Binarize targets
         targets_binary = (targets > 0.5).astype(int)
         
@@ -559,7 +558,7 @@ class EqualizedOdds(FairnessMetric):
                 mean_1 = predictions[mask_1].mean()
                 gap = abs(mean_0 - mean_1)
                 max_gap = max(max_gap, gap)
-        
+                
         return max_gap
     
     def create_primal_dual_penalty(

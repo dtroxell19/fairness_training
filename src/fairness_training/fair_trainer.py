@@ -408,6 +408,7 @@ class FairTrainer:
                 single_attr_indicators
             )
             metrics[f'fairness_gap_attr_{attr_idx}'] = attr_gap
+            max_gap = max(max_gap, attr_gap)
         
         # Overall fairness gap (max across all attributes)
         metrics['fairness_gap'] = max_gap

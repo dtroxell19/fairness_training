@@ -30,7 +30,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 
 from fair_model import FairModel
-from fairness_training.fair_trainer import FairTrainer
+from fair_trainer import FairTrainer
 from utils import create_dataloaders, create_stratified_dataloaders
 
 
@@ -388,9 +388,7 @@ def example_mean_residual_fairness():
     
     print(f"\nResults (Mean Residual Fairness):")
     print(f"  Test Loss (MSE): {metrics['test_loss']:.4f}")
-    print(f"  Mean Residual Group 0: {metrics.get('mean_residual_attr_0_group_0', 'N/A'):.4f}")
-    print(f"  Mean Residual Group 1: {metrics.get('mean_residual_attr_0_group_1', 'N/A'):.4f}")
-    print(f"  Fairness Gap: {metrics['fairness_gap']:.4f}")
+    print(f"  Fairness Gap: {metrics.get('fairness_gap_attr_0', 'N/A'):.4f}")
     
     return model, metrics
 
@@ -466,17 +464,16 @@ def example_custom_fairness_metric():
     
     history = trainer.fit(
         train_loader, val_loader,
-        epochs=30,
+        epochs=20,
         verbose=1,
-        log_interval=1
+        log_interval=5
     )
     
     print("\n--- Test Evaluation ---")
     metrics = trainer.evaluate(test_loader, return_predictions=True)
-        
     print(f"\nOverall Results:")
     print(f"  Test Loss: {metrics['test_loss']:.4f}")
-    print(f"  Max Fairness Gap: {metrics['fairness_gap']:.4f}")
+    print(f"  Max Fairness Gap: {metrics['fairness_gap_attr_0']:.4f}")
     print(f"  Target tolerance: {fairness_tolerance}")
     
     return model, metrics

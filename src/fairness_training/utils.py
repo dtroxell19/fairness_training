@@ -6,7 +6,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 from typing import Optional, Tuple, Union, List  
-from fairness_training.fairness_metrics import FairnessMetric, MeanPredictionParity, MeanResidualFairness, EqualizedOdds
+from fairness_metrics import FairnessMetric, MeanPredictionParity, MeanResidualFairness, EqualizedOdds
 
 def get_fairness_metric(
     metric: Union[str, FairnessMetric],
