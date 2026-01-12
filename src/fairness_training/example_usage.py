@@ -1,7 +1,7 @@
 """
-Example: Fair Neural Networks with Differentiable Fairness Constraints
+Example: Fairness Layers with Differentiable Fairness Constraints
 
-This module demonstrates how to use the Fair Neural Networks package with the
+This module demonstrates how to use the Fairness Layers package with the
 primal-dual algorithm for enforcing fairness constraints during inference.
 
 Key Insight: Training always uses large batches with hard per-batch constraints.

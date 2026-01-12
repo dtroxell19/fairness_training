@@ -8,12 +8,11 @@ version = "0.1.0"
 description = "A fairness-aware training and verification toolkit."
 readme = "README.md"
 authors = [
-    { name = "David Troxell" }
+    { name = "Author" }
 ]
 license = { text = "MIT" }
 requires-python = ">=3.9"
 
-# --- Core dependencies you directly use and are safe to pin ---
 dependencies = [
     "jsonpointer>=2.1",
     "packaging>=25.0",
@@ -32,10 +31,8 @@ dependencies = [
     "python-dotenv>=1.1.0",
 ]
 
-# --- Optional extras to avoid installation failures ---
 [project.optional-dependencies]
 
-# Everything needed for experiments
 full = [
     "torch==2.6.0",
     "torchvision==0.21.0",
@@ -60,7 +57,6 @@ full = [
     "cog>=0.14.4",
 ]
 
-# Minimal ML stack (no CVXPY)
 train = [
     "torch==2.6.0",
     "torchvision==0.21.0",
@@ -69,14 +65,12 @@ train = [
     "transformers==4.50.3",
 ]
 
-# Verification-only stack
 verify = [
     "cvxpy==1.6.5",
     "ecos==2.0.14",
     "diffcp==1.1.4",
 ]
 
-# CPU-only torch install instruction
 cpu = [
     "torch==2.6.0; platform_system!='Windows'",
     "numpy==2.2.4",
@@ -88,6 +82,5 @@ dev = [
     "poetry>=2.1.2",
 ]
 
-[project.urls]
 Homepage = "https://github.com/fairness_training/fairness_training"
 Issues = "https://github.com/fairness_training/fairness_training/issues"

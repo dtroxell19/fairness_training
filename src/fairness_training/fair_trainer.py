@@ -38,13 +38,6 @@ class FairTrainer:
         scheduler: Optional learning rate scheduler
         early_stopping_patience: Epochs to wait before early stopping
         early_stopping_delta: Minimum improvement to reset patience
-        
-    Example:
-        >>> model = FairModel(input_dim=10, hidden_dims=[32, 16])
-        >>> criterion = nn.MSELoss()
-        >>> optimizer = optim.Adam(model.parameters(), lr=0.01)
-        >>> trainer = FairTrainer(model, criterion, optimizer)
-        >>> history = trainer.fit(train_loader, val_loader, epochs=100)
     """
     
     def __init__(

@@ -52,24 +52,6 @@ class FairModel(nn.Module):
         activation (str): Activation function ('relu', 'tanh', 'sigmoid', 'leaky_relu')
         fairness_metric: Either a string ('mean_pred', 'mean_residual') or a FairnessMetric instance
         custom_network (nn.Module): Optional custom network architecture to use instead of default
-        
-    Example:
-        # Basic usage with string metric
-        model = FairModel(input_dim=20, hidden_dims=[64, 32], protected_attr_idx=0)
-        
-        # Multiple protected attributes (marginal fairness)
-        model = FairModel(input_dim=20, hidden_dims=[64, 32], protected_attr_idx=[0, 1])
-        
-        # With custom network
-        custom_net = MyCustomNetwork(input_dim=20, output_dim=1)
-        model = FairModel(input_dim=20, protected_attr_idx=0, custom_network=custom_net)
-        
-        # With custom fairness metric
-        from fairness_metrics import FairnessMetric
-        class MyMetric(FairnessMetric):
-            ...
-        model = FairModel(input_dim=20, hidden_dims=[64, 32], 
-                         protected_attr_idx=0, fairness_metric=MyMetric(num_protected_attrs=1))
     """
     
     def __init__(

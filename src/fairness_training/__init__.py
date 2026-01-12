@@ -1,11 +1,11 @@
 """
-Fair Neural Networks
+Fairness Layers
 
 A PyTorch package for training neural networks with differentiable optimization layers 
 to enforce fairness constraints.
 
 Usage:
-    from fair_nn import FairModel, FairTrainer, create_dataloaders
+    from fairness_training import FairModel, FairTrainer, create_dataloaders
     
     # Create model with built-in metric
     model = FairModel(
@@ -17,7 +17,7 @@ Usage:
     )
     
     # Or with custom metric
-    from fair_nn import FairnessMetric, MeanPredictionParity
+    from fairness_training import FairnessMetric, MeanPredictionParity
     custom_metric = MeanPredictionParity(num_protected_attrs=2)
     model = FairModel(..., fairness_metric=custom_metric)
     
