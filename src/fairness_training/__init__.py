@@ -30,25 +30,21 @@ Usage:
 """
 
 from .fair_model import FairModel
-from .fair_trainer import (
-    FairTrainer, 
-    create_dataloaders, 
-    create_stratified_dataloaders
-)
+from .fair_trainer import FairTrainer
 from .fairness_metrics import (
     FairnessMetric,
     MeanPredictionParity,
     MeanResidualFairness,
     EqualizedOdds,
-    get_fairness_metric
 )
 from .utils import (
     get_fairness_metric,
     create_dataloaders,
-    create_stratified_dataloaders
+    create_stratified_dataloaders,
+    validate_metric,
 )
 
-__version__ = "0.3.0"
+__version__ = "0.1.0"
 
 __all__ = [
     # Core classes
@@ -62,5 +58,7 @@ __all__ = [
     "get_fairness_metric",
     # Data loading
     "create_dataloaders",
-    "create_stratified_dataloaders"
-    ]
+    "create_stratified_dataloaders",
+    # Utilities
+    "validate_metric",
+]

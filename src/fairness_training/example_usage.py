@@ -29,9 +29,8 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 
-from fair_model import FairModel
-from fair_trainer import FairTrainer
-from utils import create_dataloaders, create_stratified_dataloaders
+from fairness_training import FairModel, FairTrainer
+from fairness_training.utils import create_dataloaders, create_stratified_dataloaders
 
 
 def load_and_preprocess_adult_data():
@@ -285,7 +284,8 @@ def example_small_batch_inference():
     
     print(f"\nResults (Small-Batch Primal-Dual Inference):")
     print(f"  Test Loss: {metrics['test_loss']:.4f}")
-    print(f"  Aggregate Fairness Gap: {aggregate_stats['aggregate_gap']:.4f}")
+    print(f"  Weighted-avg fairness gap (theorem bound): {metrics['weighted_avg_fairness_gap']:.4f}")
+    print(f"  Pooled aggregate gap:                      {metrics['pooled_fairness_gap']:.4f}")
     print(f"  Target epsilon: {fairness_tolerance}")
     print(f"  lambda_max observed: {aggregate_stats['lambda_max']:.4f}")
     print(f"  Total inference samples: {aggregate_stats['total_samples']}")
@@ -428,10 +428,10 @@ def example_custom_fairness_metric():
         batch_size_eval=batch_size_eval
     )
 
-    import fairness_metrics
-    
+    from fairness_training.fairness_metrics import EqualizedOdds
+
     # Create custom metric
-    custom_metric = fairness_metrics.EqualizedOdds( num_protected_attrs=1 )
+    custom_metric = EqualizedOdds(num_protected_attrs=1)
     
     print(f"Custom Metric: {type(custom_metric).__name__}")
     print(f"  - requires_targets: {custom_metric.requires_targets}")

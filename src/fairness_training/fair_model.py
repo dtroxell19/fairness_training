@@ -15,6 +15,7 @@ Key Features:
 - Extensible: Support for custom fairness metrics via FairnessMetric interface
 """
 
+import warnings
 import torch
 import torch.nn as nn
 import numpy as np
@@ -22,8 +23,26 @@ import cvxpy as cp
 from cvxpylayers.torch import CvxpyLayer
 from typing import Optional, Union, Tuple, List
 
-from fairness_metrics import FairnessMetric
-from utils import get_fairness_metric
+from .fairness_metrics import FairnessMetric
+from .utils import get_fairness_metric
+
+class _ProtectedStripWrapper(nn.Module):
+    """Removes protected attribute columns from X before forwarding to backbone.
+
+    Used by FairModel.wrap(..., exclude_protected_from_backbone=True) so the
+    backbone never sees the protected attribute as a feature while FairModel
+    still has access to it for the fairness layer.
+    """
+
+    def __init__(self, backbone: nn.Module, protected_cols: list):
+        super().__init__()
+        self.backbone = backbone
+        self._protected_cols = set(protected_cols)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        keep = [i for i in range(x.shape[1]) if i not in self._protected_cols]
+        return self.backbone(x[:, keep])
+
 
 class FairModel(nn.Module):
     """
@@ -62,7 +81,7 @@ class FairModel(nn.Module):
         protected_attr_idx: Union[int, List[int]] = 0,
         prediction_bounds: Tuple[float, float] = (0.0, 1.0),
         fairness_tolerance: float = 0.05,
-        b_tau: int = 2000,
+        b_tau: int = 64,
         eta_0: float = 0.5,
         activation: str = 'relu',
         fairness_metric: Union[str, FairnessMetric] = 'mean_pred',
@@ -88,7 +107,11 @@ class FairModel(nn.Module):
             raise ValueError("FairModel currently only supports up to 2 protected attributes.")
         
         self.lb, self.ub = prediction_bounds
-        
+        if self.lb >= self.ub:
+            raise ValueError(
+                f"prediction_bounds must satisfy lb < ub, got ({self.lb}, {self.ub})"
+            )
+
         # Handle legacy fairness_criterion parameter
         if fairness_criterion is not None:
             import warnings
@@ -118,7 +141,6 @@ class FairModel(nn.Module):
         # Build or use custom network
         if custom_network is not None:
             self.ffnn = custom_network
-            print(f"Using custom network architecture")
         else:
             if hidden_dims is None:
                 raise ValueError("Either provide custom_network or specify hidden_dims")
@@ -172,9 +194,22 @@ class FairModel(nn.Module):
         Returns:
             Fair predictions of shape (batch_size, output_dim)
         """
+        # Validate protected attribute columns are binary {0, 1}
+        for attr_idx in self.protected_attr_idx:
+            col = x[:, attr_idx]
+            unique_vals = col.unique()
+            if not all(v.item() in (0, 1) for v in unique_vals):
+                warnings.warn(
+                    f"Protected attribute at column {attr_idx} contains values other than 0 and 1 "
+                    f"(found {unique_vals.tolist()}). The fairness layer requires binary protected "
+                    f"attributes. Results may be incorrect.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+
         # Get raw predictions from neural network
         y_hat = self.ffnn(x)
-        
+
         # Check if targets are needed
         if self.requires_targets and y is None:
             raise ValueError(
@@ -401,7 +436,7 @@ class FairModel(nn.Module):
             n_0 = selector_0.sum()
             n_1 = selector_1.sum()
             print(f"  Attribute {attr_idx}: Group 0 = {n_0:.0f}, Group 1 = {n_1:.0f}")
-            
+
             if n_0 > 0 and n_1 > 0:
                 mask_0 = torch.from_numpy(selector_0.astype(bool))
                 mask_1 = torch.from_numpy(selector_1.astype(bool))
@@ -409,8 +444,128 @@ class FairModel(nn.Module):
                 mean_1 = y_hat.squeeze(1)[mask_1].mean().item()
                 gap = abs(mean_0 - mean_1)
                 print(f"    Unconstrained gap: {gap:.6f} (tolerance: {self.fairness_tolerance})")
+        print("\nLikely causes and fixes:")
+        print("  1. fairness_tolerance too tight — try increasing epsilon (e.g. 0.05 → 0.10)")
+        print("  2. One group has very few samples — use create_stratified_dataloaders() to")
+        print("     ensure both groups appear in every batch")
+        print("  3. prediction_bounds don't cover the raw network output range — check that")
+        print(f"     ({self.lb}, {self.ub}) spans the values printed above")
+        print("  4. Numerical instability — try a larger batch size or looser tolerance")
         print("="*80 + "\n")
     
+    # ------------------------------------------------------------------
+    # Convenience constructor
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def wrap(
+        cls,
+        network: nn.Module,
+        protected_attr_idx: Union[int, List[int]],
+        input_dim: int,
+        fairness_tolerance: float = 0.05,
+        fairness_metric: Union[str, 'FairnessMetric'] = 'mean_pred',
+        prediction_bounds: Optional[Tuple[float, float]] = None,
+        b_tau: int = 64,
+        eta_0: float = 0.5,
+        exclude_protected_from_backbone: bool = False,
+    ) -> 'FairModel':
+        """Wrap an existing nn.Module with a differentiable fairness layer.
+
+        Infers ``output_dim`` from a dry-run forward pass. If
+        ``prediction_bounds`` is not provided, it is inferred from the
+        dry-run output range (with a small margin) and a warning is issued
+        so the user can verify or override.
+
+        Args:
+            network: Any ``nn.Module`` that accepts ``(batch_size, input_dim)``
+                     input and returns ``(batch_size, output_dim)`` output.
+            protected_attr_idx: Column index or list of indices of protected
+                                 attributes in the input tensor.
+            input_dim: Number of input features (columns in X).
+            fairness_tolerance: Target fairness tolerance epsilon.
+            fairness_metric: Metric name string or ``FairnessMetric`` instance.
+            prediction_bounds: ``(lb, ub)`` for the fairness layer. If None,
+                               inferred from the network's output on a probe input.
+            b_tau: Batch size threshold between hard-constraint and primal-dual
+                   inference. Batches >= b_tau use hard per-batch constraints;
+                   smaller batches use the online primal-dual algorithm.
+            eta_0: Initial dual step size for primal-dual inference.
+            exclude_protected_from_backbone: If True, wrap ``network`` in a thin
+                layer that strips the protected attribute columns before forwarding,
+                so the backbone never sees the protected attribute as a feature.
+                The fairness layer still receives the full input including protected
+                columns. Defaults to False for backward compatibility.
+
+        Returns:
+            Initialized ``FairModel`` using ``network`` as its backbone.
+
+        Example::
+
+            import torch.nn as nn
+            from fairness_training import FairModel
+
+            my_net = nn.Sequential(nn.Linear(20, 64), nn.ReLU(), nn.Linear(64, 1), nn.Sigmoid())
+            model = FairModel.wrap(my_net, protected_attr_idx=0, input_dim=20)
+
+            # Prevent backbone from seeing the protected attribute as a feature:
+            model = FairModel.wrap(my_net, protected_attr_idx=0, input_dim=20,
+                                   exclude_protected_from_backbone=True)
+        """
+        if exclude_protected_from_backbone:
+            cols = ([protected_attr_idx] if isinstance(protected_attr_idx, int)
+                    else list(protected_attr_idx))
+            network = _ProtectedStripWrapper(network, cols)
+
+        network.eval()
+        with torch.no_grad():
+            probe = torch.zeros(2, input_dim)
+            try:
+                probe_out = network(probe)
+            except Exception as e:
+                raise ValueError(
+                    f"FairModel.wrap(): dry-run forward pass on network failed with "
+                    f"input shape (2, {input_dim}). Make sure input_dim matches the "
+                    f"network's expected input size. Original error: {e}"
+                ) from e
+
+        if probe_out.dim() == 1:
+            output_dim = 1
+        else:
+            output_dim = probe_out.shape[-1]
+
+        if prediction_bounds is None:
+            lo = probe_out.min().item()
+            hi = probe_out.max().item()
+            if lo >= hi:
+                # Constant output on probe — use safe defaults
+                lo, hi = lo - 0.5, hi + 0.5
+            margin = (hi - lo) * 0.1
+            inferred_lb = lo - margin
+            inferred_ub = hi + margin
+            warnings.warn(
+                f"FairModel.wrap(): prediction_bounds not provided. Inferred "
+                f"({inferred_lb:.4f}, {inferred_ub:.4f}) from a probe forward pass. "
+                f"Verify this covers your network's full output range, or pass "
+                f"prediction_bounds explicitly.",
+                UserWarning,
+                stacklevel=2,
+            )
+            prediction_bounds = (inferred_lb, inferred_ub)
+
+        return cls(
+            input_dim=input_dim,
+            hidden_dims=None,
+            output_dim=output_dim,
+            protected_attr_idx=protected_attr_idx,
+            prediction_bounds=prediction_bounds,
+            fairness_tolerance=fairness_tolerance,
+            b_tau=b_tau,
+            eta_0=eta_0,
+            fairness_metric=fairness_metric,
+            custom_network=network,
+        )
+
     def reset_inference_state(self):
         """Reset primal-dual state for inference. Call before new inference sequence"""
         self.lambda_dual = 0.0
@@ -444,7 +599,8 @@ class FairModel(nn.Module):
         all_predictions = []
         all_targets = []
         all_protected = {attr_idx: [] for attr_idx in self.protected_attr_idx}
-        
+        skipped_batches = 0
+
         with torch.no_grad():
             for batch_x, batch_y in data_loader:
                 # Check if both groups present for all attributes
@@ -454,8 +610,9 @@ class FairModel(nn.Module):
                        (batch_x[:, attr_idx] == 1).sum() < 1:
                         skip_batch = True
                         break
-                
+
                 if skip_batch:
+                    skipped_batches += 1
                     continue
                 
                 # Forward pass in inference mode
@@ -470,6 +627,16 @@ class FairModel(nn.Module):
                 for attr_idx in self.protected_attr_idx:
                     all_protected[attr_idx].append(batch_x[:, attr_idx].cpu())
         
+        if skipped_batches > 0:
+            warnings.warn(
+                f"get_aggregate_fairness_stats: {skipped_batches} batch(es) were skipped "
+                f"because at least one protected group was absent. Statistics are computed "
+                f"on the remaining batches only. Consider using create_stratified_dataloaders() "
+                f"to guarantee both groups appear in every batch.",
+                UserWarning,
+                stacklevel=2,
+            )
+
         # Aggregate
         all_predictions = torch.cat(all_predictions, dim=0).numpy()
         all_targets = torch.cat(all_targets, dim=0).numpy()
@@ -490,8 +657,20 @@ class FairModel(nn.Module):
                 all_predictions, all_targets, single_attr_indicators
             )
         
+        # Batch-size-weighted time-average of per-batch gaps — the quantity bounded by
+        # the theorem. Differs from pooled_aggregate_gap when group ratios vary across
+        # batches; coincides with it when stratified sampling keeps ratios constant.
+        if self.cumulative_samples > 0:
+            weighted_avg_gap = (
+                self.cumulative_weighted_violation / self.cumulative_samples
+                + self.fairness_tolerance
+            )
+        else:
+            weighted_avg_gap = float('nan')
+
         return {
-            'aggregate_gap': aggregate_gap,
+            'pooled_aggregate_gap': aggregate_gap,
+            'weighted_avg_fairness_gap': weighted_avg_gap,
             'per_attribute_gaps': per_attr_gaps,
             'lambda_max': self.lambda_max,
             'lambda_final': self.lambda_dual,

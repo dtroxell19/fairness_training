@@ -597,7 +597,7 @@ class EqualizedOdds(FairnessMetric):
                 mean_y1_g1 = cp.sum(cp.multiply(yhat, sel_y1_g1)) / n_y1_g1
                 constraints += [
                     max_gap >= mean_y1_g0 - mean_y1_g1,
-                    max_gap >= mean_y1_g0 - mean_y1_g0,
+                    max_gap >= mean_y1_g1 - mean_y1_g0,
                 ]
         
         return max_gap, constraints

@@ -2,11 +2,15 @@
 Utility functions for fairness evaluation
 """
 
+import logging
 import numpy as np
 import torch
+import cvxpy as cp
 from torch.utils.data import DataLoader, TensorDataset
-from typing import Optional, Tuple, Union, List  
-from fairness_metrics import FairnessMetric, MeanPredictionParity, MeanResidualFairness, EqualizedOdds
+from typing import Optional, Tuple, Union, List
+from .fairness_metrics import FairnessMetric, MeanPredictionParity, MeanResidualFairness, EqualizedOdds
+
+log = logging.getLogger(__name__)
 
 def get_fairness_metric(
     metric: Union[str, FairnessMetric],
@@ -127,15 +131,15 @@ def create_dataloaders(
 
 
 def create_stratified_dataloaders(
-    X_train: np.ndarray,
-    y_train: np.ndarray,
-    X_val: Optional[np.ndarray] = None,
-    y_val: Optional[np.ndarray] = None,
-    X_test: Optional[np.ndarray] = None,
-    y_test: Optional[np.ndarray] = None,
+    X_train: Union[np.ndarray, torch.Tensor],
+    y_train: Union[np.ndarray, torch.Tensor],
+    X_val: Optional[Union[np.ndarray, torch.Tensor]] = None,
+    y_val: Optional[Union[np.ndarray, torch.Tensor]] = None,
+    X_test: Optional[Union[np.ndarray, torch.Tensor]] = None,
+    y_test: Optional[Union[np.ndarray, torch.Tensor]] = None,
     protected_attr_idx: Union[int, List[int]] = 0,
-    batch_size_train: int = 2000,
-    batch_size_eval: int = 2000
+    batch_size_train: int = 256,
+    batch_size_eval: int = 256,
 ) -> Tuple[DataLoader, ...]:
     """
     Create dataloaders with stratified sampling to maintain constant group ratios.
@@ -148,12 +152,12 @@ def create_stratified_dataloaders(
     This is recommended for training.
     
     Args:
-        X_train, y_train: Training data
-        X_val, y_val: Validation data (optional)  
-        X_test, y_test: Test data (optional)
-        protected_attr_idx: Index or list of indices (max 2) of protected attributes
-        batch_size_train: Batch size for training (should be >= b_tau)
-        batch_size_eval: Batch size for validation/test
+        X_train, y_train: Training data (numpy array or torch.Tensor).
+        X_val, y_val: Validation data (optional).
+        X_test, y_test: Test data (optional).
+        protected_attr_idx: Index or list of indices (max 2) of protected attributes.
+        batch_size_train: Batch size for training.
+        batch_size_eval: Batch size for validation/test.
         
     Returns:
         Tuple of DataLoaders with stratified batches
@@ -165,6 +169,23 @@ def create_stratified_dataloaders(
         # Two attribute stratification (maintains all 4 group proportions)
         loaders = create_stratified_dataloaders(X, y, protected_attr_idx=[0, 1])
     """
+    # Accept torch.Tensor as well as numpy arrays
+    def _to_numpy(arr):
+        if isinstance(arr, torch.Tensor):
+            return arr.detach().cpu().numpy()
+        return np.asarray(arr)
+
+    X_train = _to_numpy(X_train)
+    y_train = _to_numpy(y_train)
+    if X_val is not None:
+        X_val = _to_numpy(X_val)
+    if y_val is not None:
+        y_val = _to_numpy(y_val)
+    if X_test is not None:
+        X_test = _to_numpy(X_test)
+    if y_test is not None:
+        y_test = _to_numpy(y_test)
+
     # Normalize protected_attr_idx to list
     if isinstance(protected_attr_idx, int):
         attr_indices = [protected_attr_idx]
@@ -220,8 +241,14 @@ def create_stratified_dataloaders(
         total_dropped = dropped_0 + dropped_1
         
         if total_dropped > 0:
-            print(f"Warning: Dropping {total_dropped} samples ({dropped_0} from group 0, {dropped_1} from group 1) "
-                  f"to ensure complete batches")
+            import warnings as _w
+            _w.warn(
+                f"create_stratified_dataloaders: dropping {total_dropped} samples "
+                f"({dropped_0} from group 0, {dropped_1} from group 1) to form "
+                f"complete batches.",
+                UserWarning,
+                stacklevel=4,
+            )
         
         # Create batches
         batches = []
@@ -314,7 +341,13 @@ def create_stratified_dataloaders(
         
         if total_dropped > 0:
             dropped_str = ", ".join([f"group {k}: {v}" for k, v in dropped_per_group.items() if v > 0])
-            print(f"    Warning: Dropping {total_dropped} samples ({dropped_str}) to ensure complete batches")
+            import warnings as _w
+            _w.warn(
+                f"create_stratified_dataloaders: dropping {total_dropped} samples "
+                f"({dropped_str}) to form complete batches.",
+                UserWarning,
+                stacklevel=4,
+            )
         
         # Create batches
         batches = []
@@ -333,23 +366,22 @@ def create_stratified_dataloaders(
     
     def create_loader(X, y, batch_size, split_name):
         """Create a single stratified dataloader."""
-        print(f"\n=== Creating stratified {split_name} batches ===")
-        print(f"  Original samples: {len(X)}")
-        
+        log.debug("Creating stratified %s batches (n=%d)", split_name, len(X))
+
         if len(attr_indices) == 1:
             batches, group_counts = create_stratified_batches_single(
                 X, attr_indices[0], batch_size, split_name
             )
-            print(f"  Per-batch allocation: group 0={group_counts[0]}, group 1={group_counts[1]}")
+            log.debug("  per-batch: group 0=%d, group 1=%d", group_counts[0], group_counts[1])
         else:
             batches, group_counts = create_stratified_batches_dual(
                 X, attr_indices[0], attr_indices[1], batch_size, split_name
             )
             counts_str = ", ".join([f"group {k}={v}" for k, v in group_counts.items()])
-            print(f"  Per-batch allocation: {counts_str}")
-        
-        print(f"  Created {len(batches)} batches of size {batch_size}")
-        print(f"  Total samples used: {len(batches) * batch_size}")
+            log.debug("  per-batch: %s", counts_str)
+
+        log.debug("  %d batches of size %d (%d total samples)",
+                  len(batches), batch_size, len(batches) * batch_size)
         
         if len(batches) == 0:
             raise ValueError(f"No complete batches could be created for {split_name}. "
@@ -386,5 +418,104 @@ def create_stratified_dataloaders(
     if X_test is not None and y_test is not None:
         test_loader = create_loader(X_test, y_test, batch_size_eval, "test")
         loaders.append(test_loader)
-    
+
     return tuple(loaders)
+
+
+def validate_metric(
+    metric: FairnessMetric,
+    input_dim: int,
+    batch_size: int = 20,
+    protected_attr_idx: Union[int, List[int]] = 0,
+    fairness_tolerance: float = 0.05,
+) -> None:
+    """Validate that a FairnessMetric produces DPP-compliant cvxpy constraints.
+
+    Runs a dry-pass through ``metric.create_constraints()`` using dummy cvxpy
+    objects and synthetic data, then checks whether the resulting problem is
+    DPP-compliant (``cp.Problem.is_dcp(dpp=True)``).  Raises ``ValueError``
+    with a descriptive message if any constraint fails.
+
+    Call this before training to catch DPP violations early, rather than
+    receiving a cryptic solver error on the first batch.
+
+    Args:
+        metric: A :class:`FairnessMetric` instance to validate.
+        input_dim: Number of input features (columns) in X.
+        batch_size: Number of samples to use in the synthetic batch.
+        protected_attr_idx: Column index or list of indices of protected attrs.
+        fairness_tolerance: Epsilon value for the slack parameter.
+
+    Raises:
+        TypeError: If ``metric`` is not a ``FairnessMetric`` instance.
+        ValueError: If any constraint is not DPP-compliant, with the index of
+                    the offending constraint and the expression string.
+
+    Example::
+
+        from fairness_training import validate_metric, MeanPredictionParity
+
+        validate_metric(MeanPredictionParity(), input_dim=20, batch_size=100)
+        # Passes silently if valid.
+    """
+    if not isinstance(metric, FairnessMetric):
+        raise TypeError(
+            f"validate_metric expects a FairnessMetric instance, got {type(metric).__name__}. "
+            f"Make sure you are passing an instantiated metric object (e.g. "
+            f"MeanPredictionParity()), not a class or string."
+        )
+
+    if isinstance(protected_attr_idx, int):
+        attr_indices = [protected_attr_idx]
+    else:
+        attr_indices = list(protected_attr_idx)
+
+    # Build synthetic torch tensors for selection matrix construction
+    rng = np.random.default_rng(0)
+    x_np = rng.standard_normal((batch_size, input_dim)).astype(np.float32)
+    # Ensure both groups present for every protected attr
+    for idx in attr_indices:
+        x_np[:, idx] = 0.0
+        x_np[batch_size // 2:, idx] = 1.0
+
+    y_np = (rng.random(batch_size) > 0.5).astype(np.float32)
+    x_t = torch.from_numpy(x_np)
+    y_t = torch.from_numpy(y_np).unsqueeze(1)
+
+    selection_matrices = metric.create_selection_matrices(x_t, y_t, attr_indices)
+
+    # Build dummy cvxpy objects
+    yhat = cp.Variable(batch_size)
+    slack = cp.Parameter(1, nonneg=True)
+    slack.value = np.array([fairness_tolerance])
+
+    if metric.requires_y_in_constraints:
+        y_param = cp.Parameter(batch_size)
+        y_param.value = y_np
+        constraints = metric.create_constraints(yhat, selection_matrices, slack, y_param)
+    else:
+        constraints = metric.create_constraints(yhat, selection_matrices, slack)
+
+    if not constraints:
+        return  # No constraints — nothing to validate
+
+    objective = cp.Minimize(cp.sum_squares(yhat))
+    problem = cp.Problem(objective, constraints)
+
+    if not problem.is_dcp(dpp=True):
+        # Find the first offending constraint
+        bad_indices = []
+        for i, c in enumerate(constraints):
+            p = cp.Problem(cp.Minimize(0), [c])
+            if not p.is_dcp(dpp=True):
+                bad_indices.append((i, str(c)))
+
+        detail = "; ".join(f"constraint[{i}]: {expr}" for i, expr in bad_indices[:3])
+        raise ValueError(
+            f"validate_metric: {type(metric).__name__} produces constraints that are not "
+            f"DPP-compliant. DPP (Disciplined Parameterized Programming) requires constraints "
+            f"to be affine in decision variables and parameters separately — avoid multiplying "
+            f"two cvxpy Parameters or a Parameter by a Variable.\n"
+            f"Offending constraint(s): {detail}\n"
+            f"See docs/user-guide/custom-metrics.md for DPP compliance rules."
+        )
