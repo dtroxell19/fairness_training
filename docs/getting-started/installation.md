@@ -1,3 +1,5 @@
+# Installation
+
 ## Requirements
 
 - **Python 3.9 or newer**
@@ -5,50 +7,35 @@
 
 ---
 
-## Install via pip (recommended)
+## Install via pip
 
-### Lightweight base installation
-Installs core utilities and shared infrastructure.
-This is sufficient for configuration, data handling, and inspection tools.
+### Recommended setup
+
+For training and the differentiable fairness layer (the most common setup):
 
 ```bash
-pip install fairness_training
+pip install fairness_training[train,verify]
 ```
 
----
+### Other install options
 
-## Optional Feature Sets
+| Extra | What it adds | When to use |
+|-------|-------------|-------------|
+| `train` | PyTorch, NumPy, SciPy, Transformers | Model training |
+| `verify` | CVXPY + solvers (ECOS) | Fairness layer (required for `FairModel`) |
+| `full` | Everything above + datasets, vision, TensorBoard | All features |
+| `cpu` | CPU-only PyTorch | CPU-only environments |
+| `viz` | Matplotlib | Plotting utilities |
+| `dev` | pytest, black, pipdeptree | Development / testing |
 
-fairness_training uses **optional dependency groups** to keep installations lightweight and explicit.
-Install only what you need.
-
-### Training support
-Includes PyTorch, NumPy, SciPy, and Transformers.
 ```bash
-pip install fairness_training[train]
-```
-
-### Verification / optimization support
-Includes CVXPY and associated solvers for convex verification.
-```bash
-pip install fairness_training[verify]
-```
-
-### Full installation
-Includes all supported functionality: training, verification, datasets, vision tools, logging, and utilities.
-```bash
+# Full installation
 pip install fairness_training[full]
-```
 
-### CPU-only environment
-Explicitly targets CPU-only workflows.
-```bash
-pip install fairness_training[cpu]
-```
+# Visualization support only
+pip install fairness_training[viz]
 
-### Development tools
-Formatting, dependency inspection, and packaging utilities.
-```bash
+# Development tools
 pip install fairness_training[dev]
 ```
 
@@ -56,57 +43,44 @@ pip install fairness_training[dev]
 
 ## Install from Source
 
-For the latest development version:
 ```bash
-git clone https://github.com/fairness_training/fairness_training.git
+git clone https://github.com/dtroxell19/fairness_training.git
 cd fairness_training
-pip install -e .
+pip install -e .[train,verify]
 ```
-You may combine this with optional dependencies, for example:
-```bash
-pip install -e .[full]
-```
-
----
-
-## Dependency Management Philosophy
-
-fairness_training follows these principles:
-
-- **Exact version pinning** for major numerical and ML libraries
-- **Optional dependency groups** for modular installs
-- **No implicit heavy dependencies** in the base install
-
-All dependencies and extras are defined in `project.toml`, which is the single source of truth for installation behavior
 
 ---
 
 ## Verify Installation
+
 ```python
 import fairness_training
-print(fairness_training.__version__)
+print(fairness_training.__version__)  # 0.1.0
 ```
-
-Expected output: 0.1.0
-
-If this succeeds, the installation is complete.
 
 ---
 
 ## Troubleshooting
 
-### Solver issues (verification)
+### `AttributeError: module 'onnxscript.values' has no attribute 'ParamSchema'`
 
-Some optimization problems may require additional solvers.
-You can install them manually if needed:
+This is a conflict with `onnxscript`, which this library doesn't use. Remove it:
+
 ```bash
-pip install ecos
+pip uninstall onnxscript -y
 ```
 
-Other solvers supported by CVXPY may also be used.
+### Solver issues
+
+The `verify` extra installs [ECOS](https://github.com/embotech/ecos), which handles most problems. If you hit numerical issues, try installing additional CVXPY-compatible solvers:
+
+```bash
+pip install clarabel   # recommended alternative
+pip install scs        # another option
+```
 
 ---
 
 ## Next Steps
 
-Once installed, head to the **Quickstart** to train or verify your first fairness-aware model
+Head to the **[Quickstart](quickstart.md)** to train your first fairness-aware model.

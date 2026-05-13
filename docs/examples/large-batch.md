@@ -119,10 +119,6 @@ Dataset: 20000 samples, 50 features
 attr1: 60.2% Male, attr2: 70.1% White
 Positive class: 62.3%
 
-=== Creating stratified training batches ===
-  Per-batch allocation: group 00=119, group 01=280, group 10=481, group 11=1120
-  Created 6 batches of size 2000
-
 Batch size 2000 >= b_tau 2000 → HARD constraints
 Fairness tolerance (ε): 0.05
 

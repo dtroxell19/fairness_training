@@ -1,17 +1,25 @@
-# Fairness Layers in Neural Networks
+# fairness_training
 
-**Guaranteed fairness constraints in deep learning through differentiable optimization layers**
+**Guaranteed fairness constraints for PyTorch neural networks — in three lines of code.**
 
-[![PyPI version](https://badge.fury.io/py/fairness_training.svg)](https://badge.fury.io/py/fairness_training)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![PyTorch 2.0+](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg)](https://pytorch.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/dtroxell19/fairness_training/blob/main/notebooks/quickstart.ipynb)
+
+```python
+model = FairModel.wrap(my_network, protected_attr_idx=0, fairness_tolerance=0.05)
+trainer = FairTrainer(model, criterion, optimizer)
+trainer.fit(train_loader, val_loader, epochs=50)  # fairness gap ≤ 0.05, guaranteed
+```
 
 ---
 
-## What is the fairness_training package?
+## What is fairness_training?
 
-fairness_training is a Python package that enables training neural networks with **hard fairness constraints**. Unlike penalty-based methods that only encourage constraints, fairness_training guarantees that your model's predictions satisfy specified criteria. 
+`fairness_training` lets you train any PyTorch network with **hard fairness constraints**. Unlike penalty-based methods that only *encourage* fairness, this library *guarantees* that predictions satisfy specified criteria on every training batch.
 
-Through [cvxpylayers](https://locuslab.github.io/2019-10-28-cvxpylayers/), this package uses a **differentiable fairness layer**: a convex optimization layer appended to the neural network that projects predictions onto the feasible set defined by your constraints while remaining fully differentiable for end-to-end training.
+The approach: append a **differentiable fairness layer** — a convex optimization problem solved via [cvxpylayers](https://locuslab.github.io/2019-10-28-cvxpylayers/) — that projects raw predictions onto the feasible set defined by your constraints. Because the projection is differentiable, gradients flow back through it into the network weights during training.
 
 ---
 
@@ -87,7 +95,7 @@ If you use fairness_training in your research, please cite:
 ```bibtex
 @inproceedings{author2025fairness,
   title={Differentiable Optimization Layers for Guaranteed Fairness in Deep Learning},
-  author={removed during review period for anonymity},
+  author={Anonymous},
   year={2025}
 }
 ```

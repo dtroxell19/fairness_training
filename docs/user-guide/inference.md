@@ -27,7 +27,7 @@ The fairness_training package provides two inference regimes to handle different
 
 ## Large-Batch Inference
 
-When your inference batch size is ≥ `b_tau` (default 2000), fairness_training enforces **hard per-batch constraints**.
+When your inference batch size is ≥ `b_tau` (default 64), fairness_training enforces **hard per-batch constraints**.
 
 **Requirements**
 
@@ -49,8 +49,8 @@ For real-time inference where you can't control batch sizes, fairness_training u
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `eta_0` | 0.5 | Initial dual step size. Increase -> more strict |
-| `b_tau` | 2000 | Threshold between regimes |
+| `eta_0` | 0.5 | Initial dual step size. Increase → more strict enforcement |
+| `b_tau` | 64 | Threshold between large-batch (hard constraints) and small-batch (primal-dual) regimes |
 
 ---
 

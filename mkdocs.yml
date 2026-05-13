@@ -1,20 +1,20 @@
-site_name: Fairness Layers
-site_description: A PyTorch package for training neural networks with differentiable fairness constraints
-site_author: author
-repo_url: https://github.com/author/fairness_training
+site_name: fairness_training
+site_description: Guaranteed fairness constraints for PyTorch neural networks via differentiable optimization layers
+site_author: David Troxell
+repo_url: https://github.com/dtroxell19/fairness_training
 repo_name: fairness_training
 
 theme:
   name: material
   palette:
     - scheme: default
-      primary: indigo
+      primary: deep purple
       accent: indigo
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
     - scheme: slate
-      primary: indigo
+      primary: deep purple
       accent: indigo
       toggle:
         icon: material/brightness-4
