@@ -1,17 +1,11 @@
 # fairness_training
 
-**Guaranteed fairness constraints for PyTorch neural networks — in three lines of code.**
+**Guaranteed fairness constraints for PyTorch neural networks**
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch 2.0+](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg)](https://pytorch.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/dtroxell19/fairness_training/blob/main/notebooks/quickstart.ipynb)
-
-```python
-model = FairModel.wrap(my_network, protected_attr_idx=0, fairness_tolerance=0.05)
-trainer = FairTrainer(model, criterion, optimizer)
-trainer.fit(train_loader, val_loader, epochs=50)  # fairness gap ≤ 0.05, guaranteed
-```
 
 ---
 
@@ -93,10 +87,12 @@ This projection is differentiable via implicit differentiation through the KKT c
 If you use fairness_training in your research, please cite:
 
 ```bibtex
-@inproceedings{author2025fairness,
-  title={Differentiable Optimization Layers for Guaranteed Fairness in Deep Learning},
-  author={Anonymous},
-  year={2025}
+@inproceedings{troxell2026fairness,
+  title     = {Differentiable Optimization Layers for Guaranteed Fairness in Deep Learning},
+  author    = {Troxell, David and Roemer, Noah and Mont{\'u}far, Guido},
+  booktitle = {Proceedings of the 43rd International Conference on Machine Learning},
+  year      = {2026},
+  note      = {To appear}
 }
 ```
 This package relies heavily on the wonderful [cvxpylayers](https://locuslab.github.io/2019-10-28-cvxpylayers/) package. We encourage you to also cite their work:

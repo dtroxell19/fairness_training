@@ -19,16 +19,19 @@ This installs the core package with PyTorch and the CVXPY fairness layer — the
 
 | Extra | What it adds | When to use |
 |-------|-------------|-------------|
-| `train` | PyTorch, NumPy, SciPy, Transformers | Model training |
-| `verify` | CVXPY + solvers (ECOS) | Fairness layer — required for `FairModel` |
-| `full` | Everything above + datasets, vision, TensorBoard | All features |
-| `cpu` | CPU-only PyTorch | CPU-only environments |
+| `train` | PyTorch, torchvision, NumPy, SciPy, Transformers | Model training |
+| `verify` | CVXPY, cvxpylayers, ECOS, diffcp | Fairness layer — **required for `FairModel`** |
+| `full` | Everything above + datasets, vision tools, TensorBoard | All features |
+| `cpu` | CPU-only PyTorch + NumPy | CPU-only environments (pair with `verify`: `[cpu,verify]`) |
 | `viz` | Matplotlib | Plotting utilities (`fairness_training.viz`) |
-| `dev` | pytest, black, pipdeptree | Development / testing |
+| `dev` | pytest, pytest-cov, black | Running the test suite |
 
 ```bash
 # Training + fairness + visualization
 pip install fairness_training[train,verify,viz]
+
+# CPU-only (no CUDA) + fairness layer
+pip install fairness_training[cpu,verify]
 
 # Full installation
 pip install fairness_training[full]

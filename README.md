@@ -6,17 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/dtroxell19/fairness_training/blob/main/notebooks/quickstart.ipynb)
 
-**Guaranteed fairness constraints for PyTorch neural networks — in three lines of code.**
-
-```python
-from fairness_training import FairModel, FairTrainer, create_stratified_dataloaders
-
-model = FairModel.wrap(my_network, protected_attr_idx=0, fairness_tolerance=0.05)
-trainer = FairTrainer(model, criterion, optimizer)
-trainer.fit(train_loader, val_loader, epochs=50)
-```
-
----
+**Guaranteed fairness constraints for PyTorch neural networks**
 
 ## Why fairness_training?
 
@@ -112,10 +102,12 @@ Full documentation — concepts, API reference, and end-to-end examples — is a
 If you use `fairness_training` in your research, please cite:
 
 ```bibtex
-@inproceedings{author2025fairness,
-  title={Differentiable Optimization Layers for Guaranteed Fairness in Deep Learning},
-  author={Anonymous},
-  year={2025}
+@inproceedings{troxell2026fairness,
+  title     = {Differentiable Optimization Layers for Guaranteed Fairness in Deep Learning},
+  author    = {Troxell, David and Roemer, Noah and Mont{\'u}far, Guido},
+  booktitle = {Proceedings of the 43rd International Conference on Machine Learning},
+  year      = {2026},
+  note      = {To appear}
 }
 ```
 
