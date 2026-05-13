@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main, prez_edits]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # -------------------------------------------------------------------
+  # Fast tests — run on every push/PR, matrix across Python versions
+  # -------------------------------------------------------------------
+  fast-tests:
+    name: Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install CPU PyTorch
+        run: pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install package + dev deps
+        run: pip install -e ".[verify,dev]"
+
+      - name: Run fast tests
+        run: pytest tests/ -m "not slow" -v --tb=short --cov=src/fairness_training --cov-report=term-missing
+
+  # -------------------------------------------------------------------
+  # Integration tests — only on Python 3.11, runs after fast tests pass
+  # -------------------------------------------------------------------
+  integration-tests:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    needs: fast-tests
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install CPU PyTorch
+        run: pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install package + dev deps
+        run: pip install -e ".[verify,dev]"
+
+      - name: Run integration tests
+        run: pytest tests/ -m slow -v --tb=short

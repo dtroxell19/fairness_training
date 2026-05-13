@@ -1,6 +1,12 @@
 # Quickstart
 
-Train a fairness-constrained neural network in five steps. This example uses a synthetic classification dataset, but the same pattern works for any tabular task.
+Train a fairness-constrained neural network in five steps. Install first if you haven't already:
+
+```bash
+pip install fairness_training[train,verify]
+```
+
+This example uses a synthetic classification dataset, but the same pattern works for any tabular task.
 
 ---
 

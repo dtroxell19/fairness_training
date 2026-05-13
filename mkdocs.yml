@@ -8,13 +8,13 @@ theme:
   name: material
   palette:
     - scheme: default
-      primary: deep purple
+      primary: indigo
       accent: indigo
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
     - scheme: slate
-      primary: deep purple
+      primary: indigo
       accent: indigo
       toggle:
         icon: material/brightness-4
@@ -85,6 +85,7 @@ nav:
     - Training Models: user-guide/training.md
     - Inference: user-guide/inference.md
     - Custom Metrics: user-guide/custom-metrics.md
+    - Visualization: user-guide/visualization.md
   - Examples:
     - Large-Batch Inference: examples/large-batch.md
     - Small-Batch Inference: examples/small-batch.md

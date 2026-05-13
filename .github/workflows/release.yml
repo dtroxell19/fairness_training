@@ -1,0 +1,62 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version number (e.g. 0.2.0 — no leading v)"
+        required: true
+        type: string
+      prerelease:
+        description: "Mark as pre-release?"
+        type: boolean
+        default: false
+
+jobs:
+  release:
+    name: Bump version, tag, and draft release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Use a PAT so the push can trigger CI on the new commit.
+          # Falls back to GITHUB_TOKEN (push won't re-trigger workflows).
+          token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump version in pyproject.toml
+        run: |
+          sed -i 's/^version = ".*"/version = "${{ inputs.version }}"/' pyproject.toml
+
+      - name: Bump __version__ in __init__.py
+        run: |
+          sed -i 's/^__version__ = ".*"/__version__ = "${{ inputs.version }}"/' \
+            src/fairness_training/__init__.py
+
+      - name: Commit version bump
+        run: |
+          git add pyproject.toml src/fairness_training/__init__.py
+          git commit -m "chore: bump version to ${{ inputs.version }}"
+          git push
+
+      - name: Create and push tag
+        run: |
+          git tag "v${{ inputs.version }}"
+          git push origin "v${{ inputs.version }}"
+
+      - name: Draft GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "v${{ inputs.version }}" \
+            --title "v${{ inputs.version }}" \
+            --notes "$(cat CHANGELOG.md | awk '/^## \[${{ inputs.version }}\]/{found=1; next} found && /^## \[/{exit} found{print}')" \
+            ${{ inputs.prerelease == 'true' && '--prerelease' || '' }} \
+            --draft

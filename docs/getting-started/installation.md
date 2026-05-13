@@ -9,39 +9,39 @@
 
 ## Install via pip
 
-### Recommended setup
-
-For training and the differentiable fairness layer (the most common setup):
-
 ```bash
 pip install fairness_training[train,verify]
 ```
 
-### Other install options
+This installs the core package with PyTorch and the CVXPY fairness layer — the typical setup for training.
+
+### Install options
 
 | Extra | What it adds | When to use |
 |-------|-------------|-------------|
 | `train` | PyTorch, NumPy, SciPy, Transformers | Model training |
-| `verify` | CVXPY + solvers (ECOS) | Fairness layer (required for `FairModel`) |
+| `verify` | CVXPY + solvers (ECOS) | Fairness layer — required for `FairModel` |
 | `full` | Everything above + datasets, vision, TensorBoard | All features |
 | `cpu` | CPU-only PyTorch | CPU-only environments |
-| `viz` | Matplotlib | Plotting utilities |
+| `viz` | Matplotlib | Plotting utilities (`fairness_training.viz`) |
 | `dev` | pytest, black, pipdeptree | Development / testing |
 
 ```bash
+# Training + fairness + visualization
+pip install fairness_training[train,verify,viz]
+
 # Full installation
 pip install fairness_training[full]
 
-# Visualization support only
-pip install fairness_training[viz]
-
-# Development tools
+# Development
 pip install fairness_training[dev]
 ```
 
 ---
 
 ## Install from Source
+
+For the latest development version:
 
 ```bash
 git clone https://github.com/dtroxell19/fairness_training.git
@@ -64,7 +64,7 @@ print(fairness_training.__version__)  # 0.1.0
 
 ### `AttributeError: module 'onnxscript.values' has no attribute 'ParamSchema'`
 
-This is a conflict with `onnxscript`, which this library doesn't use. Remove it:
+A conflict with `onnxscript`, which this library doesn't use:
 
 ```bash
 pip uninstall onnxscript -y
@@ -72,7 +72,7 @@ pip uninstall onnxscript -y
 
 ### Solver issues
 
-The `verify` extra installs [ECOS](https://github.com/embotech/ecos), which handles most problems. If you hit numerical issues, try installing additional CVXPY-compatible solvers:
+The `verify` extra installs [ECOS](https://github.com/embotech/ecos), which handles most problems. If you hit numerical issues, try:
 
 ```bash
 pip install clarabel   # recommended alternative

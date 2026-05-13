@@ -8,13 +8,23 @@ where = ["src"]
 [project]
 name = "fairness_training"
 version = "0.1.0"
-description = "A fairness-aware training and verification toolkit."
+description = "Guaranteed fairness constraints for PyTorch neural networks via differentiable optimization layers."
 readme = "README.md"
 authors = [
-    { name = "Author" }
+    { name = "David Troxell", email = "davidtroxell@g.ucla.edu" }
 ]
-license = { text = "MIT" }
+license = "MIT"
 requires-python = ">=3.9"
+keywords = ["fairness", "machine learning", "deep learning", "pytorch", "cvxpy", "constrained optimization"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 
 dependencies = [
     "jsonpointer>=2.1",
@@ -92,8 +102,9 @@ viz = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/fairness_training/fairness_training"
-Issues = "https://github.com/fairness_training/fairness_training/issues"
+Homepage = "https://github.com/dtroxell19/fairness_training"
+Issues = "https://github.com/dtroxell19/fairness_training/issues"
+Changelog = "https://github.com/dtroxell19/fairness_training/blob/main/CHANGELOG.md"
 
 [tool.pytest.ini_options]
 markers = [

@@ -41,9 +41,13 @@ When your inference batch size is ≥ `b_tau` (default 64), fairness_training en
 
 ## Small-Batch Inference (Primal-Dual Algorithm)
 
-For real-time inference where you can't control batch sizes, fairness_training uses an **online primal-dual algorithm** that guarantees aggregate fairness over time
+For real-time inference where you can't control batch sizes, `fairness_training` uses an **online primal-dual algorithm** with the following guarantee:
 
-**Key insight**: Individual batches may violate constraints, but the weighted average violation over time converges to satisfy the constraint.
+**Key insight**: Individual batches may violate constraints, but the **sample-weighted average violation converges to at most ε** as the number of batches T → ∞:
+
+$$\bar{\Delta}_T = \frac{1}{N_T} \sum_{t=1}^{T} n_t \cdot \Delta_t \;\leq\; \varepsilon$$
+
+This is the quantity reported as `weighted_avg_fairness_gap` in `trainer.evaluate()` output. It is **not** the same as the pooled gap (all predictions concatenated) — see [Core Concepts](concepts.md) for details. There is no finite-T guarantee: individual batches and short sequences may still show gaps above ε.
 
 ### Parameters
 

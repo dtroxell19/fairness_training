@@ -75,44 +75,50 @@ fairness_training supports fairness constraints that can be expressed as affine 
 
 ## Two Inference Regimes
 
-In standard ML inference settings, a large batch of samples are received at once and new predictions are made (validation or test set.). In
-such cases, we enforce constraints per-mini batch in the validation/test set. If the makeup of each batch is the same (i.e. the ratio of observations belonging to each group is the same) then the fairness constraints are automatically satisfied when considering the entire validation/set at once.
+In standard ML inference settings, a large batch of samples are received at once (e.g. a validation or test set). In such cases, constraints are enforced per mini-batch. When batch composition is constant across batches (i.e. the group ratio is the same in every batch — achieved via stratified sampling), enforcing per-batch constraints automatically implies aggregate fairness over the full dataset.
 
-However, in other settings, only a small number of new inputs may be received at a time. In these "online" or "streaming" prediction settings, enforcing the constraints at the mini-batch level may severely limit the predictive power and expressivity of the network. To overcome this, we introduce a primal-dual algorithm that guarantees aggregate fairness (i.e. fairness when considering ALL inference predictions ever made) over time. Note that while fairness is guaranteed over time, in this setting, there is no guarantee aggregate fairness will be achieved after a given finite inference dataset.
+In other settings, only a small number of inputs arrive at a time. In these **online / streaming** settings, enforcing hard per-batch constraints may be infeasible or overly restrictive. To handle this, `fairness_training` uses a primal-dual algorithm that provides a weaker but still meaningful guarantee: the **sample-weighted average violation** converges to at most ε as the number of inference batches grows.
+
+!!! note "What 'aggregate fairness' means in the small-batch regime"
+    The primal-dual algorithm guarantees that as T → ∞:
+
+    $$\bar{\Delta}_T = \frac{1}{N_T} \sum_{t=1}^{T} n_t \cdot \Delta_t \;\leq\; \varepsilon$$
+
+    where $n_t$ is the number of samples in batch $t$, $\Delta_t$ is the per-batch fairness gap, and $N_T = \sum_t n_t$ is the total number of predictions made.
+
+    This is **not** the same as the pooled gap $|\bar{E}[\hat{y}|A=0] - \bar{E}[\hat{y}|A=1]|$ computed over all predictions. The two coincide only when the group ratio $n_t^{(0)}/n_t^{(1)}$ is constant across batches. `weighted_avg_fairness_gap` in the evaluation output reports $\bar{\Delta}_T$; `pooled_fairness_gap` reports the raw pooled gap.
 
 ### Large-Batch Regime (batch_size ≥ b_tau)
 
 When batches are large enough:
 
-- Hard constraints are enforced per batch
-- Each batch's predictions satisfy fairness constraints
-- Aggregate fairness is automatically satisfied if batch composition is constant
+- Hard constraints are enforced per batch — every batch's predictions satisfy the fairness constraints
+- Aggregate (pooled) fairness is automatically satisfied if batch composition is constant across batches
 
 ```python
-# Large batches: hard constraints
-model = FairModel(..., b_tau=500) # 500 is chosen by the modeler. In reality, this can be any number if stratified sampling is used to keep batch composition constant
+# Large batches → hard constraints per batch
+model = FairModel(..., b_tau=256)
 
-# With batch_size=500, each batch satisfies constraints
-predictions = model(X, inference=True)
+predictions = model(X, inference=True)  # guaranteed: gap ≤ ε for this batch
 ```
 
 ### Small-Batch Regime (batch_size < b_tau)
 
-For real-time inference with small batches:
+For real-time inference where you can't control batch sizes:
 
-- Individual batches may violate constraints
-- **Aggregate fairness is guaranteed** over time via online primal-dual algorithm
+- Individual batches **may violate** constraints
+- The primal-dual algorithm guarantees that the **sample-weighted average violation converges to ≤ ε** as the number of batches grows
 
 ```python
-# Small batches: primal-dual algorithm
-model.reset_inference_state()
+model.reset_inference_state()  # always reset before a new inference sequence
 
 for batch in streaming_data:
-    predictions = model(batch, inference=True)  # May violate per-batch
-    
-# Aggregate is guaranteed fair
-stats = model.get_aggregate_fairness_stats()
-assert stats['aggregate_gap'] <= model.fairness_tolerance
+    predictions = model(batch, inference=True)  # per-batch gap may exceed ε
+
+# After many batches, the sample-weighted average gap converges to ≤ ε
+stats = model.get_aggregate_fairness_stats(streaming_loader, reset_before=True)
+print(stats['weighted_avg_fairness_gap'])   # → ≤ ε asymptotically
+# Note: stats['pooled_aggregate_gap'] may differ if group ratios vary across batches
 ```
 
 ---

@@ -12,12 +12,20 @@ This example demonstrates deploying a model for real-time/streaming predictions
 Per-batch hard constraints may not work well with small batches because:
 
 1. Model expressivity may be severely limited 
-2. There may be no way to ensure consistent group membership per-batch
+2. Group membership ratios can vary between small batches, making stratification difficult
 
-Our small-batch inference algorithm allows for any given batch to violate fairness constraints within the batch, but aggregate fairness (i.e. fairness constraints when considering all inference predictions ever made) is still guaranteed over time
+The primal-dual algorithm relaxes per-batch constraints and instead provides a weaker but still meaningful **asymptotic guarantee**.
 
-!!! warning "Small-Batch Fairness Guarantee"
-    Note that the small-batch inference algorithm only guarantees constraint violation **over time** (i.e. over rounds of small-batch inference inputs received), with no guarantee on the exact number of predictions needed before the constraints are satisfied. While this algorithm may help comply to regulations, eventually guarantee fairness, etc., we emphasize that constraints may not be satisfied at each timestep!
+!!! warning "What the small-batch guarantee actually says"
+    The primal-dual algorithm guarantees that the **sample-weighted average violation** converges to at most ε as the number of inference batches T → ∞:
+
+    $$\bar{\Delta}_T = \frac{1}{N_T} \sum_{t=1}^{T} n_t \cdot \Delta_t \;\leq\; \varepsilon$$
+
+    where $n_t$ is the batch size and $\Delta_t$ is the per-batch fairness gap.
+
+    This is **not** the same as the pooled gap when considering all predictions together. The pooled gap (`pooled_aggregate_gap`) and the sample-weighted average (`weighted_avg_fairness_gap`) coincide only when the group ratio $n_t^{(0)}/n_t^{(1)}$ is constant across batches. Use `weighted_avg_fairness_gap` when assessing compliance with the theoretical bound.
+
+    Additionally, there is **no guarantee on when** this bound is achieved — it is an asymptotic statement. Individual batches and finite sequences may still show gaps above ε.
 
 ---
 

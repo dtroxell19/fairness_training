@@ -1,5 +1,6 @@
 # fairness_training
 
+[![CI](https://github.com/dtroxell19/fairness_training/actions/workflows/ci.yml/badge.svg)](https://github.com/dtroxell19/fairness_training/actions/workflows/ci.yml)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch 2.0+](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg)](https://pytorch.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -44,14 +45,9 @@ Most fairness methods either *encourage* fairness (soft penalties) or correct pr
 ## Installation
 
 ```bash
-# Standard install (training + fairness layer)
-pip install fairness_training[train,verify]
-
-# Full install (adds datasets, vision, visualization, TensorBoard)
-pip install fairness_training[full]
-
-# Visualization only (for plotting utilities)
-pip install fairness_training[viz]
+pip install fairness_training[train,verify]       # training + fairness layer (recommended)
+pip install fairness_training[train,verify,viz]   # + matplotlib visualization utilities
+pip install fairness_training[full]               # everything
 ```
 
 ---
