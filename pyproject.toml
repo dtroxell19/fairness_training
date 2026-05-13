@@ -55,6 +55,7 @@ full = [
     "scipy==1.15.2",
 
     "cvxpy==1.6.5",
+    "cvxpylayers>=0.1.6",
     "ecos==2.0.14",
     "diffcp==1.1.4",
 
@@ -80,6 +81,7 @@ train = [
 
 verify = [
     "cvxpy==1.6.5",
+    "cvxpylayers>=0.1.6",
     "ecos==2.0.14",
     "diffcp==1.1.4",
 ]
