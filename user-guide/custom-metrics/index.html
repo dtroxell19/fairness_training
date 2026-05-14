@@ -6,17 +6,17 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="A PyTorch package for training neural networks with differentiable fairness constraints">
+        <meta name="description" content="Guaranteed fairness constraints for PyTorch neural networks via differentiable optimization layers">
       
       
-        <meta name="author" content="author">
+        <meta name="author" content="David Troxell">
       
       
       
         <link rel="prev" href="../inference/">
       
       
-        <link rel="next" href="../../examples/large-batch/">
+        <link rel="next" href="../visualization/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Custom Metrics - Fairness Layers</title>
+        <title>Custom Metrics - fairness_training</title>
       
     
     
@@ -94,7 +94,7 @@
 
 <header class="md-header" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="../.." title="Fairness Layers" class="md-header__button md-logo" aria-label="Fairness Layers" data-md-component="logo">
+    <a href="../.." title="fairness_training" class="md-header__button md-logo" aria-label="fairness_training" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -108,7 +108,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Fairness Layers
+            fairness_training
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -196,7 +196,7 @@
     
     
       <div class="md-header__source">
-        <a href="https://github.com/author/fairness_training" title="Go to repository" class="md-source" data-md-component="source">
+        <a href="https://github.com/dtroxell19/fairness_training" title="Go to repository" class="md-source" data-md-component="source">
   <div class="md-source__icon md-icon">
     
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
@@ -344,17 +344,17 @@
 
 <nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="../.." title="Fairness Layers" class="md-nav__button md-logo" aria-label="Fairness Layers" data-md-component="logo">
+    <a href="../.." title="fairness_training" class="md-nav__button md-logo" aria-label="fairness_training" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
 
     </a>
-    Fairness Layers
+    fairness_training
   </label>
   
     <div class="md-nav__source">
-      <a href="https://github.com/author/fairness_training" title="Go to repository" class="md-source" data-md-component="source">
+      <a href="https://github.com/dtroxell19/fairness_training" title="Go to repository" class="md-source" data-md-component="source">
   <div class="md-source__icon md-icon">
     
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
@@ -747,22 +747,44 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#requirements-for-custom-metrics" class="md-nav__link">
+  <a href="#requirements" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Requirements for Custom Metrics
+        Requirements
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Requirements for Custom Metrics">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
+</li>
+      
+        <li class="md-nav__item">
   <a href="#dpp-disciplined-parameterized-programming-rules" class="md-nav__link">
     <span class="md-ellipsis">
       
         DPP (Disciplined Parameterized Programming) Rules
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#complete-example-weighted-mean-parity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Complete Example: Weighted Mean Parity
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Complete Example: Weighted Mean Parity">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#using-the-custom-metric" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Using the custom metric
       
     </span>
   </a>
@@ -775,10 +797,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#custom-selection-matrices" class="md-nav__link">
+  <a href="#validate-before-training" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Custom Selection Matrices
+        Validate Before Training
       
     </span>
   </a>
@@ -850,6 +872,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../visualization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Visualization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -1179,22 +1229,44 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#requirements-for-custom-metrics" class="md-nav__link">
+  <a href="#requirements" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Requirements for Custom Metrics
+        Requirements
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Requirements for Custom Metrics">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
+</li>
+      
+        <li class="md-nav__item">
   <a href="#dpp-disciplined-parameterized-programming-rules" class="md-nav__link">
     <span class="md-ellipsis">
       
         DPP (Disciplined Parameterized Programming) Rules
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#complete-example-weighted-mean-parity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Complete Example: Weighted Mean Parity
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Complete Example: Weighted Mean Parity">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#using-the-custom-metric" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Using the custom metric
       
     </span>
   </a>
@@ -1207,10 +1279,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#custom-selection-matrices" class="md-nav__link">
+  <a href="#validate-before-training" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Custom Selection Matrices
+        Validate Before Training
       
     </span>
   </a>
@@ -1299,78 +1371,216 @@
 
 
 <h1 id="custom-fairness-metrics">Custom Fairness Metrics<a class="headerlink" href="#custom-fairness-metrics" title="Permanent link">&para;</a></h1>
-<p>The fairness_training package supports custom fairness metrics through the <code>FairnessMetric</code> base class. This guide shows how to create your own.</p>
+<p><code>fairness_training</code> supports custom fairness metrics through the <code>FairnessMetric</code> base class. This lets you encode any affine fairness constraint — group-conditional means, quantiles approximated linearly, industry-specific fairness criteria, and more.</p>
 <hr />
-<h2 id="requirements-for-custom-metrics">Requirements for Custom Metrics<a class="headerlink" href="#requirements-for-custom-metrics" title="Permanent link">&para;</a></h2>
+<h2 id="requirements">Requirements<a class="headerlink" href="#requirements" title="Permanent link">&para;</a></h2>
 <p>Your custom metric must:</p>
 <ol>
-<li><strong>Be affine</strong> in predictions and/or targets</li>
+<li><strong>Express constraints as affine functions</strong> of the predictions <code>yhat</code> and (optionally) targets <code>y</code></li>
 <li><strong>Be DPP-compliant</strong> for cvxpylayers (see rules below)</li>
-<li><strong>Subclass <code>FairnessMetric</code></strong> and implement required methods</li>
+<li><strong>Subclass <code>FairnessMetric</code></strong> and implement the four required methods</li>
 </ol>
-<h3 id="dpp-disciplined-parameterized-programming-rules">DPP (Disciplined Parameterized Programming) Rules<a class="headerlink" href="#dpp-disciplined-parameterized-programming-rules" title="Permanent link">&para;</a></h3>
-<p>For cvxpylayers to work, constraints must follow these rules:</p>
-<ul>
-<li><code>yhat</code> is a <code>cp.Variable</code> (the predictions being optimized)</li>
-<li><code>y</code> is a <code>cp.Parameter</code> (targets, if needed)</li>
-<li>Selection matrices must be <strong>constant numpy arrays</strong> (0/1 values)</li>
-<li><code>slack</code> is a <code>cp.Parameter</code> (the tolerance ε)</li>
-<li>Products are only allowed when one operand is constant</li>
-</ul>
-<p><strong>Allowed</strong>:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">cp</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="n">yhat</span><span class="p">,</span> <span class="n">selector</span><span class="p">)</span>  <span class="c1"># Variable × constant</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">cp</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">cp</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">selector</span><span class="p">))</span> <span class="o">/</span> <span class="n">n</span>  <span class="c1"># Parameter × constant / constant</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">mean_0</span> <span class="o">-</span> <span class="n">mean_1</span> <span class="o">&lt;=</span> <span class="n">slack</span>  <span class="c1"># Expression &lt;= Parameter</span>
+<hr />
+<h2 id="dpp-disciplined-parameterized-programming-rules">DPP (Disciplined Parameterized Programming) Rules<a class="headerlink" href="#dpp-disciplined-parameterized-programming-rules" title="Permanent link">&para;</a></h2>
+<p>cvxpylayers requires that constraints are <strong>affine in variables and parameters separately</strong> — no variable × parameter products.</p>
+<table>
+<thead>
+<tr>
+<th>Role</th>
+<th>cvxpy type</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>yhat</code></td>
+<td><code>cp.Variable</code></td>
+<td>Predictions being optimized</td>
+</tr>
+<tr>
+<td><code>y</code></td>
+<td><code>cp.Parameter</code></td>
+<td>Ground-truth targets (if needed)</td>
+</tr>
+<tr>
+<td>Selection matrices</td>
+<td><code>np.ndarray</code> (constant)</td>
+<td>Group membership indicators — must be numpy, not torch</td>
+</tr>
+<tr>
+<td><code>slack</code></td>
+<td><code>cp.Parameter</code></td>
+<td>Tolerance ε</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Allowed:</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">cp</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="n">yhat</span><span class="p">,</span> <span class="n">selector</span><span class="p">)</span>             <span class="c1"># Variable × constant ✓</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">cp</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">cp</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">selector</span><span class="p">))</span> <span class="o">/</span> <span class="n">n</span>    <span class="c1"># Parameter × constant / constant ✓</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">mean_group_0</span> <span class="o">-</span> <span class="n">mean_group_1</span> <span class="o">&lt;=</span> <span class="n">slack</span>    <span class="c1"># Expression &lt;= Parameter ✓</span>
 </code></pre></div></p>
-<p><strong>Not allowed</strong>:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">cp</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="n">yhat</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>  <span class="c1"># Variable × Parameter (both varying)</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">cp</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="n">slack</span><span class="p">,</span> <span class="n">gap_var</span><span class="p">)</span>  <span class="c1"># Parameter × Variable</span>
+<p><strong>Not allowed:</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">cp</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="n">yhat</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>       <span class="c1"># Variable × Parameter ✗</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">cp</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="n">slack</span><span class="p">,</span> <span class="n">gap</span><span class="p">)</span>    <span class="c1"># Parameter × Variable ✗</span>
 </code></pre></div></p>
 <hr />
-<h2 id="custom-selection-matrices">Custom Selection Matrices<a class="headerlink" href="#custom-selection-matrices" title="Permanent link">&para;</a></h2>
-<p>By default, selection matrices are structured as <code>[A=0, A=1]</code> for each attribute. Override <code>create_selection_matrices</code> for custom structures:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">create_selection_matrices</span><span class="p">(</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="bp">self</span><span class="p">,</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">y</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">protected_attr_idx</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]:</span>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="sd">    Override for custom selector structure.</span>
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="sd">    Example: Create selectors conditioned on outcome (like EqualizedOdds)</span>
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>    <span class="k">if</span> <span class="n">y</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;This metric requires targets&quot;</span><span class="p">)</span>
-<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>
-<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>    <span class="n">y_np</span> <span class="o">=</span> <span class="n">y</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
-<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>    <span class="n">selection_matrices</span> <span class="o">=</span> <span class="p">[]</span>
-<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>
-<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>    <span class="k">for</span> <span class="n">attr_idx</span> <span class="ow">in</span> <span class="n">protected_attr_idx</span><span class="p">:</span>
-<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a>        <span class="n">protected_vals</span> <span class="o">=</span> <span class="n">x</span><span class="p">[:,</span> <span class="n">attr_idx</span><span class="p">]</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
-<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a>
-<a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a>        <span class="c1"># 4 selectors: (Y=0, A=0), (Y=0, A=1), (Y=1, A=0), (Y=1, A=1)</span>
-<a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a>        <span class="k">for</span> <span class="n">y_val</span> <span class="ow">in</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]:</span>
-<a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a>            <span class="k">for</span> <span class="n">a_val</span> <span class="ow">in</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]:</span>
-<a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a>                <span class="n">selector</span> <span class="o">=</span> <span class="p">((</span><span class="n">y_np</span> <span class="o">==</span> <span class="n">y_val</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">protected_vals</span> <span class="o">==</span> <span class="n">a_val</span><span class="p">))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
-<a id="__codelineno-2-25" name="__codelineno-2-25" href="#__codelineno-2-25"></a>                <span class="n">selection_matrices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">selector</span><span class="p">)</span>
-<a id="__codelineno-2-26" name="__codelineno-2-26" href="#__codelineno-2-26"></a>
-<a id="__codelineno-2-27" name="__codelineno-2-27" href="#__codelineno-2-27"></a>    <span class="k">return</span> <span class="n">selection_matrices</span>
+<h2 id="complete-example-weighted-mean-parity">Complete Example: Weighted Mean Parity<a class="headerlink" href="#complete-example-weighted-mean-parity" title="Permanent link">&para;</a></h2>
+<p>Here is a complete custom metric that enforces weighted mean prediction parity. Use it as a template.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">cvxpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">cp</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Tuple</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fairness_training.fairness_metrics</span><span class="w"> </span><span class="kn">import</span> <span class="n">FairnessMetric</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="k">class</span><span class="w"> </span><span class="nc">WeightedMeanParity</span><span class="p">(</span><span class="n">FairnessMetric</span><span class="p">):</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="sd">    Weighted mean prediction parity:</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="sd">        |w0 * E[ŷ|A=0] - w1 * E[ŷ|A=1]| ≤ ε</span>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="sd">    Useful when you want to up-weight the minority group&#39;s fairness signal.</span>
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>
+<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>    <span class="n">requires_targets</span> <span class="o">=</span> <span class="kc">False</span>            <span class="c1"># set True if y is needed</span>
+<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>    <span class="n">requires_y_in_constraints</span> <span class="o">=</span> <span class="kc">False</span>   <span class="c1"># set True if y appears in cvxpy constraints</span>
+<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a>
+<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_protected_attrs</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="n">weights</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)):</span>
+<a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a>        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">num_protected_attrs</span><span class="o">=</span><span class="n">num_protected_attrs</span><span class="p">)</span>
+<a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">w0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">w1</span> <span class="o">=</span> <span class="n">weights</span>
+<a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a>
+<a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a>    <span class="c1"># ------------------------------------------------------------------</span>
+<a id="__codelineno-2-25" name="__codelineno-2-25" href="#__codelineno-2-25"></a>    <span class="c1"># 1. Selection matrices</span>
+<a id="__codelineno-2-26" name="__codelineno-2-26" href="#__codelineno-2-26"></a>    <span class="c1"># ------------------------------------------------------------------</span>
+<a id="__codelineno-2-27" name="__codelineno-2-27" href="#__codelineno-2-27"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">create_selection_matrices</span><span class="p">(</span>
+<a id="__codelineno-2-28" name="__codelineno-2-28" href="#__codelineno-2-28"></a>        <span class="bp">self</span><span class="p">,</span>
+<a id="__codelineno-2-29" name="__codelineno-2-29" href="#__codelineno-2-29"></a>        <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+<a id="__codelineno-2-30" name="__codelineno-2-30" href="#__codelineno-2-30"></a>        <span class="n">y</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
+<a id="__codelineno-2-31" name="__codelineno-2-31" href="#__codelineno-2-31"></a>        <span class="n">protected_attr_idx</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>
+<a id="__codelineno-2-32" name="__codelineno-2-32" href="#__codelineno-2-32"></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]:</span>
+<a id="__codelineno-2-33" name="__codelineno-2-33" href="#__codelineno-2-33"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Return one [n]-shaped 0/1 array per group per attribute.&quot;&quot;&quot;</span>
+<a id="__codelineno-2-34" name="__codelineno-2-34" href="#__codelineno-2-34"></a>        <span class="n">matrices</span> <span class="o">=</span> <span class="p">[]</span>
+<a id="__codelineno-2-35" name="__codelineno-2-35" href="#__codelineno-2-35"></a>        <span class="k">for</span> <span class="n">attr_idx</span> <span class="ow">in</span> <span class="n">protected_attr_idx</span><span class="p">:</span>
+<a id="__codelineno-2-36" name="__codelineno-2-36" href="#__codelineno-2-36"></a>            <span class="n">a</span> <span class="o">=</span> <span class="n">x</span><span class="p">[:,</span> <span class="n">attr_idx</span><span class="p">]</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
+<a id="__codelineno-2-37" name="__codelineno-2-37" href="#__codelineno-2-37"></a>            <span class="n">matrices</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">a</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">))</span>   <span class="c1"># group 0 indicator</span>
+<a id="__codelineno-2-38" name="__codelineno-2-38" href="#__codelineno-2-38"></a>            <span class="n">matrices</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">a</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">))</span>   <span class="c1"># group 1 indicator</span>
+<a id="__codelineno-2-39" name="__codelineno-2-39" href="#__codelineno-2-39"></a>        <span class="k">return</span> <span class="n">matrices</span>
+<a id="__codelineno-2-40" name="__codelineno-2-40" href="#__codelineno-2-40"></a>
+<a id="__codelineno-2-41" name="__codelineno-2-41" href="#__codelineno-2-41"></a>    <span class="c1"># ------------------------------------------------------------------</span>
+<a id="__codelineno-2-42" name="__codelineno-2-42" href="#__codelineno-2-42"></a>    <span class="c1"># 2. cvxpy constraints (must be DPP-compliant)</span>
+<a id="__codelineno-2-43" name="__codelineno-2-43" href="#__codelineno-2-43"></a>    <span class="c1"># ------------------------------------------------------------------</span>
+<a id="__codelineno-2-44" name="__codelineno-2-44" href="#__codelineno-2-44"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">create_constraints</span><span class="p">(</span>
+<a id="__codelineno-2-45" name="__codelineno-2-45" href="#__codelineno-2-45"></a>        <span class="bp">self</span><span class="p">,</span>
+<a id="__codelineno-2-46" name="__codelineno-2-46" href="#__codelineno-2-46"></a>        <span class="n">yhat</span><span class="p">:</span> <span class="n">cp</span><span class="o">.</span><span class="n">Variable</span><span class="p">,</span>
+<a id="__codelineno-2-47" name="__codelineno-2-47" href="#__codelineno-2-47"></a>        <span class="n">y</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">cp</span><span class="o">.</span><span class="n">Parameter</span><span class="p">],</span>
+<a id="__codelineno-2-48" name="__codelineno-2-48" href="#__codelineno-2-48"></a>        <span class="n">selection_matrices</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">],</span>
+<a id="__codelineno-2-49" name="__codelineno-2-49" href="#__codelineno-2-49"></a>        <span class="n">slack</span><span class="p">:</span> <span class="n">cp</span><span class="o">.</span><span class="n">Parameter</span><span class="p">,</span>
+<a id="__codelineno-2-50" name="__codelineno-2-50" href="#__codelineno-2-50"></a>        <span class="n">attr_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+<a id="__codelineno-2-51" name="__codelineno-2-51" href="#__codelineno-2-51"></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">cp</span><span class="o">.</span><span class="n">Constraint</span><span class="p">]:</span>
+<a id="__codelineno-2-52" name="__codelineno-2-52" href="#__codelineno-2-52"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Build constraints for attribute `attr_idx`.&quot;&quot;&quot;</span>
+<a id="__codelineno-2-53" name="__codelineno-2-53" href="#__codelineno-2-53"></a>        <span class="n">base</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">attr_idx</span>           <span class="c1"># each attribute occupies 2 slots in the list</span>
+<a id="__codelineno-2-54" name="__codelineno-2-54" href="#__codelineno-2-54"></a>        <span class="n">sel0</span> <span class="o">=</span> <span class="n">selection_matrices</span><span class="p">[</span><span class="n">base</span><span class="p">]</span>       <span class="c1"># group 0 indicator, shape (n,)</span>
+<a id="__codelineno-2-55" name="__codelineno-2-55" href="#__codelineno-2-55"></a>        <span class="n">sel1</span> <span class="o">=</span> <span class="n">selection_matrices</span><span class="p">[</span><span class="n">base</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span>   <span class="c1"># group 1 indicator, shape (n,)</span>
+<a id="__codelineno-2-56" name="__codelineno-2-56" href="#__codelineno-2-56"></a>
+<a id="__codelineno-2-57" name="__codelineno-2-57" href="#__codelineno-2-57"></a>        <span class="n">n0</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">sel0</span><span class="o">.</span><span class="n">sum</span><span class="p">(),</span> <span class="mi">1</span><span class="p">)</span>
+<a id="__codelineno-2-58" name="__codelineno-2-58" href="#__codelineno-2-58"></a>        <span class="n">n1</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">sel1</span><span class="o">.</span><span class="n">sum</span><span class="p">(),</span> <span class="mi">1</span><span class="p">)</span>
+<a id="__codelineno-2-59" name="__codelineno-2-59" href="#__codelineno-2-59"></a>
+<a id="__codelineno-2-60" name="__codelineno-2-60" href="#__codelineno-2-60"></a>        <span class="c1"># Mean predictions per group — affine in yhat</span>
+<a id="__codelineno-2-61" name="__codelineno-2-61" href="#__codelineno-2-61"></a>        <span class="n">mean0</span> <span class="o">=</span> <span class="n">cp</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">cp</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="n">yhat</span><span class="p">,</span> <span class="n">sel0</span><span class="p">))</span> <span class="o">/</span> <span class="n">n0</span>
+<a id="__codelineno-2-62" name="__codelineno-2-62" href="#__codelineno-2-62"></a>        <span class="n">mean1</span> <span class="o">=</span> <span class="n">cp</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">cp</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="n">yhat</span><span class="p">,</span> <span class="n">sel1</span><span class="p">))</span> <span class="o">/</span> <span class="n">n1</span>
+<a id="__codelineno-2-63" name="__codelineno-2-63" href="#__codelineno-2-63"></a>
+<a id="__codelineno-2-64" name="__codelineno-2-64" href="#__codelineno-2-64"></a>        <span class="c1"># Weighted gap</span>
+<a id="__codelineno-2-65" name="__codelineno-2-65" href="#__codelineno-2-65"></a>        <span class="n">gap</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">w0</span> <span class="o">*</span> <span class="n">mean0</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">w1</span> <span class="o">*</span> <span class="n">mean1</span>
+<a id="__codelineno-2-66" name="__codelineno-2-66" href="#__codelineno-2-66"></a>
+<a id="__codelineno-2-67" name="__codelineno-2-67" href="#__codelineno-2-67"></a>        <span class="k">return</span> <span class="p">[</span><span class="n">gap</span> <span class="o">&lt;=</span> <span class="n">slack</span><span class="p">,</span> <span class="o">-</span><span class="n">gap</span> <span class="o">&lt;=</span> <span class="n">slack</span><span class="p">]</span>
+<a id="__codelineno-2-68" name="__codelineno-2-68" href="#__codelineno-2-68"></a>
+<a id="__codelineno-2-69" name="__codelineno-2-69" href="#__codelineno-2-69"></a>    <span class="c1"># ------------------------------------------------------------------</span>
+<a id="__codelineno-2-70" name="__codelineno-2-70" href="#__codelineno-2-70"></a>    <span class="c1"># 3. Monitoring gap (numpy, not used in optimisation)</span>
+<a id="__codelineno-2-71" name="__codelineno-2-71" href="#__codelineno-2-71"></a>    <span class="c1"># ------------------------------------------------------------------</span>
+<a id="__codelineno-2-72" name="__codelineno-2-72" href="#__codelineno-2-72"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">compute_gap</span><span class="p">(</span>
+<a id="__codelineno-2-73" name="__codelineno-2-73" href="#__codelineno-2-73"></a>        <span class="bp">self</span><span class="p">,</span>
+<a id="__codelineno-2-74" name="__codelineno-2-74" href="#__codelineno-2-74"></a>        <span class="n">predictions</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+<a id="__codelineno-2-75" name="__codelineno-2-75" href="#__codelineno-2-75"></a>        <span class="n">targets</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">],</span>
+<a id="__codelineno-2-76" name="__codelineno-2-76" href="#__codelineno-2-76"></a>        <span class="n">x</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+<a id="__codelineno-2-77" name="__codelineno-2-77" href="#__codelineno-2-77"></a>        <span class="n">protected_attr_idx</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>
+<a id="__codelineno-2-78" name="__codelineno-2-78" href="#__codelineno-2-78"></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<a id="__codelineno-2-79" name="__codelineno-2-79" href="#__codelineno-2-79"></a>        <span class="n">gaps</span> <span class="o">=</span> <span class="p">[]</span>
+<a id="__codelineno-2-80" name="__codelineno-2-80" href="#__codelineno-2-80"></a>        <span class="k">for</span> <span class="n">attr_idx</span> <span class="ow">in</span> <span class="n">protected_attr_idx</span><span class="p">:</span>
+<a id="__codelineno-2-81" name="__codelineno-2-81" href="#__codelineno-2-81"></a>            <span class="n">a</span> <span class="o">=</span> <span class="n">x</span><span class="p">[:,</span> <span class="n">attr_idx</span><span class="p">]</span>
+<a id="__codelineno-2-82" name="__codelineno-2-82" href="#__codelineno-2-82"></a>            <span class="n">group0</span> <span class="o">=</span> <span class="n">predictions</span><span class="p">[</span><span class="n">a</span> <span class="o">==</span> <span class="mi">0</span><span class="p">]</span>
+<a id="__codelineno-2-83" name="__codelineno-2-83" href="#__codelineno-2-83"></a>            <span class="n">group1</span> <span class="o">=</span> <span class="n">predictions</span><span class="p">[</span><span class="n">a</span> <span class="o">==</span> <span class="mi">1</span><span class="p">]</span>
+<a id="__codelineno-2-84" name="__codelineno-2-84" href="#__codelineno-2-84"></a>            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">group0</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">group1</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+<a id="__codelineno-2-85" name="__codelineno-2-85" href="#__codelineno-2-85"></a>                <span class="k">continue</span>
+<a id="__codelineno-2-86" name="__codelineno-2-86" href="#__codelineno-2-86"></a>            <span class="n">gaps</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">w0</span> <span class="o">*</span> <span class="n">group0</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">w1</span> <span class="o">*</span> <span class="n">group1</span><span class="o">.</span><span class="n">mean</span><span class="p">()))</span>
+<a id="__codelineno-2-87" name="__codelineno-2-87" href="#__codelineno-2-87"></a>        <span class="k">return</span> <span class="nb">max</span><span class="p">(</span><span class="n">gaps</span><span class="p">)</span> <span class="k">if</span> <span class="n">gaps</span> <span class="k">else</span> <span class="mf">0.0</span>
+<a id="__codelineno-2-88" name="__codelineno-2-88" href="#__codelineno-2-88"></a>
+<a id="__codelineno-2-89" name="__codelineno-2-89" href="#__codelineno-2-89"></a>    <span class="c1"># ------------------------------------------------------------------</span>
+<a id="__codelineno-2-90" name="__codelineno-2-90" href="#__codelineno-2-90"></a>    <span class="c1"># 4. Primal-dual penalty (used for small-batch inference)</span>
+<a id="__codelineno-2-91" name="__codelineno-2-91" href="#__codelineno-2-91"></a>    <span class="c1"># ------------------------------------------------------------------</span>
+<a id="__codelineno-2-92" name="__codelineno-2-92" href="#__codelineno-2-92"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">create_primal_dual_penalty</span><span class="p">(</span>
+<a id="__codelineno-2-93" name="__codelineno-2-93" href="#__codelineno-2-93"></a>        <span class="bp">self</span><span class="p">,</span>
+<a id="__codelineno-2-94" name="__codelineno-2-94" href="#__codelineno-2-94"></a>        <span class="n">yhat</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+<a id="__codelineno-2-95" name="__codelineno-2-95" href="#__codelineno-2-95"></a>        <span class="n">y</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
+<a id="__codelineno-2-96" name="__codelineno-2-96" href="#__codelineno-2-96"></a>        <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+<a id="__codelineno-2-97" name="__codelineno-2-97" href="#__codelineno-2-97"></a>        <span class="n">lambda_dual</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+<a id="__codelineno-2-98" name="__codelineno-2-98" href="#__codelineno-2-98"></a>        <span class="n">protected_attr_idx</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>
+<a id="__codelineno-2-99" name="__codelineno-2-99" href="#__codelineno-2-99"></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<a id="__codelineno-2-100" name="__codelineno-2-100" href="#__codelineno-2-100"></a>        <span class="n">total</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+<a id="__codelineno-2-101" name="__codelineno-2-101" href="#__codelineno-2-101"></a>        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">attr_idx</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">protected_attr_idx</span><span class="p">):</span>
+<a id="__codelineno-2-102" name="__codelineno-2-102" href="#__codelineno-2-102"></a>            <span class="n">a</span> <span class="o">=</span> <span class="n">x</span><span class="p">[:,</span> <span class="n">attr_idx</span><span class="p">]</span>
+<a id="__codelineno-2-103" name="__codelineno-2-103" href="#__codelineno-2-103"></a>            <span class="n">g0</span> <span class="o">=</span> <span class="n">yhat</span><span class="p">[</span><span class="n">a</span> <span class="o">==</span> <span class="mi">0</span><span class="p">]</span>
+<a id="__codelineno-2-104" name="__codelineno-2-104" href="#__codelineno-2-104"></a>            <span class="n">g1</span> <span class="o">=</span> <span class="n">yhat</span><span class="p">[</span><span class="n">a</span> <span class="o">==</span> <span class="mi">1</span><span class="p">]</span>
+<a id="__codelineno-2-105" name="__codelineno-2-105" href="#__codelineno-2-105"></a>            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">g0</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">g1</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+<a id="__codelineno-2-106" name="__codelineno-2-106" href="#__codelineno-2-106"></a>                <span class="k">continue</span>
+<a id="__codelineno-2-107" name="__codelineno-2-107" href="#__codelineno-2-107"></a>            <span class="n">gap</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">w0</span> <span class="o">*</span> <span class="n">g0</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">w1</span> <span class="o">*</span> <span class="n">g1</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+<a id="__codelineno-2-108" name="__codelineno-2-108" href="#__codelineno-2-108"></a>            <span class="n">total</span> <span class="o">=</span> <span class="n">total</span> <span class="o">+</span> <span class="n">lambda_dual</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">gap</span>
+<a id="__codelineno-2-109" name="__codelineno-2-109" href="#__codelineno-2-109"></a>        <span class="k">return</span> <span class="n">total</span>
+</code></pre></div>
+<h3 id="using-the-custom-metric">Using the custom metric<a class="headerlink" href="#using-the-custom-metric" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fairness_training</span><span class="w"> </span><span class="kn">import</span> <span class="n">FairModel</span><span class="p">,</span> <span class="n">FairTrainer</span><span class="p">,</span> <span class="n">validate_metric</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">metric</span> <span class="o">=</span> <span class="n">WeightedMeanParity</span><span class="p">(</span><span class="n">num_protected_attrs</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">))</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c1"># Validate DPP compliance before training (raises FairnessMetricError if broken)</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="n">validate_metric</span><span class="p">(</span><span class="n">metric</span><span class="p">,</span> <span class="n">input_dim</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">64</span><span class="p">)</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="n">model</span> <span class="o">=</span> <span class="n">FairModel</span><span class="p">(</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    <span class="n">input_dim</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>    <span class="n">hidden_dims</span><span class="o">=</span><span class="p">[</span><span class="mi">64</span><span class="p">,</span> <span class="mi">32</span><span class="p">],</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>    <span class="n">protected_attr_idx</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>    <span class="n">fairness_tolerance</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>    <span class="n">fairness_metric</span><span class="o">=</span><span class="n">metric</span><span class="p">,</span>          <span class="c1"># pass instance directly</span>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>    <span class="n">prediction_bounds</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">),</span>
+<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="p">)</span>
+</code></pre></div>
+<hr />
+<h2 id="validate-before-training">Validate Before Training<a class="headerlink" href="#validate-before-training" title="Permanent link">&para;</a></h2>
+<p><code>validate_metric</code> runs a dry pass through the metric's <code>create_constraints()</code> to catch DPP violations immediately, before any real training starts:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fairness_training</span><span class="w"> </span><span class="kn">import</span> <span class="n">validate_metric</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">validate_metric</span><span class="p">(</span><span class="n">metric</span><span class="p">,</span> <span class="n">input_dim</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">64</span><span class="p">)</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># Passes silently if valid.</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="c1"># Raises FairnessMetricError with the offending constraint index if not.</span>
 </code></pre></div>
 <hr />
 <h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
 <h3 id="problem-is-not-dpp">"Problem is not DPP"<a class="headerlink" href="#problem-is-not-dpp" title="Permanent link">&para;</a></h3>
-<p>Your constraints violate DPP rules. Check:
-- Are you multiplying two parameters or two variables?
-- Is your selection matrix a constant numpy array (not a torch tensor)?</p>
+<p>Your constraints violate DPP rules. Common causes:</p>
+<ul>
+<li>Multiplying two <code>cp.Parameter</code> objects (e.g. <code>slack * y_param</code>)</li>
+<li>Multiplying a <code>cp.Variable</code> by another <code>cp.Variable</code></li>
+<li>Selection matrices stored as torch tensors instead of numpy arrays</li>
+</ul>
 <h3 id="problem-is-infeasible">"Problem is infeasible"<a class="headerlink" href="#problem-is-infeasible" title="Permanent link">&para;</a></h3>
-<p>Your constraints can't be satisfied for this batch. Check:
-- Are bounds too tight?
-- Is the batch missing samples from a group?</p>
+<p>The constraints can't be satisfied for this batch. Common causes:</p>
+<ul>
+<li>Tolerance <code>ε</code> is too tight relative to the natural group gap</li>
+<li>A group has zero members in the batch — use stratified dataloaders to prevent this</li>
+</ul>
 <h3 id="gradients-are-nan">Gradients are NaN<a class="headerlink" href="#gradients-are-nan" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Check for division by zero (when a group has no samples)</li>
-<li>Ensure selection matrices have proper sums</li>
+<li>Check for division by zero when computing group means (guard with <code>max(n, 1)</code>)</li>
+<li>Ensure selection matrices sum to at least 1 before creating constraints</li>
 </ul>
 <hr />
 <h2 id="next-steps">Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>

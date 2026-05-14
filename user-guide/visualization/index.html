@@ -13,10 +13,10 @@
       
       
       
-        <link rel="prev" href="../..">
+        <link rel="prev" href="../custom-metrics/">
       
       
-        <link rel="next" href="../quickstart/">
+        <link rel="next" href="../../examples/large-batch/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Installation - fairness_training</title>
+        <title>Visualization - fairness_training</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#installation" class="md-skip">
+        <a href="#visualization" class="md-skip">
           Skip to content
         </a>
       
@@ -114,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Installation
+              Visualization
             
           </span>
         </div>
@@ -244,13 +244,11 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="./" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../../getting-started/installation/" class="md-tabs__link">
           
   
   
@@ -266,11 +264,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../../user-guide/concepts/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../concepts/" class="md-tabs__link">
           
   
   
@@ -398,31 +398,28 @@
       
   
   
-    
   
   
-  
     
     
     
     
-      
-        
-        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
         
           
-          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
             
   
   
@@ -440,7 +437,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_2">
             <span class="md-nav__icon md-icon"></span>
             
@@ -455,37 +452,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Installation
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../getting-started/installation/" class="md-nav__link">
         
   
   
@@ -501,137 +471,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#requirements" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Requirements
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#install-via-pip" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Install via pip
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Install via pip">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#install-options" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Install options
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#install-from-source" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Install from Source
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#verify-installation" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Verify Installation
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#troubleshooting" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Troubleshooting
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Troubleshooting">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#attributeerror-module-onnxscriptvalues-has-no-attribute-paramschema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        AttributeError: module 'onnxscript.values' has no attribute 'ParamSchema'
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#solver-issues" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Solver issues
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#next-steps" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Next Steps
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -644,7 +483,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../quickstart/" class="md-nav__link">
+      <a href="../../getting-started/quickstart/" class="md-nav__link">
         
   
   
@@ -676,28 +515,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
-        
-          
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
             
   
   
@@ -715,7 +557,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -733,7 +575,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/concepts/" class="md-nav__link">
+      <a href="../concepts/" class="md-nav__link">
         
   
   
@@ -761,7 +603,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/fairness-metrics/" class="md-nav__link">
+      <a href="../fairness-metrics/" class="md-nav__link">
         
   
   
@@ -789,7 +631,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/training/" class="md-nav__link">
+      <a href="../training/" class="md-nav__link">
         
   
   
@@ -817,7 +659,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/inference/" class="md-nav__link">
+      <a href="../inference/" class="md-nav__link">
         
   
   
@@ -845,7 +687,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/custom-metrics/" class="md-nav__link">
+      <a href="../custom-metrics/" class="md-nav__link">
         
   
   
@@ -870,10 +712,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../user-guide/visualization/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Visualization
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -889,6 +758,92 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Setup
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#plot_training_history" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        plot_training_history
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#plot_group_distributions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        plot_group_distributions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#plot_fairness_tradeoff" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        plot_fairness_tradeoff
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#saving-figures" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Saving Figures
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quickstart-notebook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quickstart Notebook
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1218,10 +1173,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#requirements" class="md-nav__link">
+  <a href="#setup" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Requirements
+        Setup
       
     </span>
   </a>
@@ -1229,38 +1184,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#install-via-pip" class="md-nav__link">
+  <a href="#plot_training_history" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Install via pip
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Install via pip">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#install-options" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Install options
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#install-from-source" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Install from Source
+        plot_training_history
       
     </span>
   </a>
@@ -1268,10 +1195,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#verify-installation" class="md-nav__link">
+  <a href="#plot_group_distributions" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Verify Installation
+        plot_group_distributions
       
     </span>
   </a>
@@ -1279,49 +1206,32 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#troubleshooting" class="md-nav__link">
+  <a href="#plot_fairness_tradeoff" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Troubleshooting
+        plot_fairness_tradeoff
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Troubleshooting">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#attributeerror-module-onnxscriptvalues-has-no-attribute-paramschema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        AttributeError: module 'onnxscript.values' has no attribute 'ParamSchema'
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#solver-issues" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Solver issues
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#next-steps" class="md-nav__link">
+  <a href="#saving-figures" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Next Steps
+        Saving Figures
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quickstart-notebook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quickstart Notebook
       
     </span>
   </a>
@@ -1348,97 +1258,210 @@
   
 
 
-<h1 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h1>
-<h2 id="requirements">Requirements<a class="headerlink" href="#requirements" title="Permanent link">&para;</a></h2>
-<ul>
-<li><strong>Python 3.9 or newer</strong></li>
-<li><code>pip</code> (or another PEP 517–compatible installer)</li>
-</ul>
+<h1 id="visualization">Visualization<a class="headerlink" href="#visualization" title="Permanent link">&para;</a></h1>
+<p><code>fairness_training</code> includes a lightweight plotting module, <code>fairness_training.viz</code>, with three functions for the most common fairness paper figures. All functions require <strong>matplotlib</strong>, which is an optional dependency.</p>
 <hr />
-<h2 id="install-via-pip">Install via pip<a class="headerlink" href="#install-via-pip" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span>fairness_training<span class="o">[</span>train,verify<span class="o">]</span>
+<h2 id="setup">Setup<a class="headerlink" href="#setup" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Install with visualization support</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.<span class="o">[</span>train,verify,viz<span class="o">]</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># Or add matplotlib to an existing environment</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>pip<span class="w"> </span>install<span class="w"> </span>matplotlib
 </code></pre></div>
-<p>This installs the core package with PyTorch and the CVXPY fairness layer — the typical setup for training.</p>
-<h3 id="install-options">Install options<a class="headerlink" href="#install-options" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fairness_training.viz</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="n">plot_training_history</span><span class="p">,</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">plot_group_distributions</span><span class="p">,</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">plot_fairness_tradeoff</span><span class="p">,</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="p">)</span>
+</code></pre></div>
+<hr />
+<h2 id="plot_training_history"><code>plot_training_history</code><a class="headerlink" href="#plot_training_history" title="Permanent link">&para;</a></h2>
+<p>Plot loss and fairness gap curves from the dict returned by <code>trainer.fit()</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">history</span> <span class="o">=</span> <span class="n">trainer</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">train_loader</span><span class="p">,</span> <span class="n">val_loader</span><span class="o">=</span><span class="n">val_loader</span><span class="p">,</span> <span class="n">epochs</span><span class="o">=</span><span class="mi">50</span><span class="p">)</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">fig</span> <span class="o">=</span> <span class="n">plot_training_history</span><span class="p">(</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">history</span><span class="p">,</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">title</span><span class="o">=</span><span class="s2">&quot;FairModel — mean_pred metric, ε=0.05&quot;</span><span class="p">,</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="p">)</span>
+</code></pre></div>
+<p><strong>What it shows:</strong> Two side-by-side panels — train/val loss on the left, train/val fairness gap on the right. The fairness gap panel makes it easy to see whether the model is staying within ε throughout training.</p>
+<p><strong>Arguments:</strong></p>
 <table>
 <thead>
 <tr>
-<th>Extra</th>
-<th>What it adds</th>
-<th>When to use</th>
+<th>Argument</th>
+<th>Default</th>
+<th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>train</code></td>
-<td>PyTorch, torchvision, NumPy, SciPy, Transformers</td>
-<td>Model training</td>
+<td><code>history</code></td>
+<td>required</td>
+<td>Dict from <code>trainer.fit()</code></td>
 </tr>
 <tr>
-<td><code>verify</code></td>
-<td>CVXPY, cvxpylayers, ECOS, diffcp</td>
-<td>Fairness layer — <strong>required for <code>FairModel</code></strong></td>
+<td><code>title</code></td>
+<td><code>"Training History"</code></td>
+<td>Figure title</td>
 </tr>
 <tr>
-<td><code>full</code></td>
-<td>Everything above + datasets, vision tools, TensorBoard</td>
-<td>All features</td>
+<td><code>figsize</code></td>
+<td><code>(12, 4)</code></td>
+<td><code>(width, height)</code> in inches</td>
 </tr>
 <tr>
-<td><code>cpu</code></td>
-<td>CPU-only PyTorch + NumPy</td>
-<td>CPU-only environments (pair with <code>verify</code>: <code>[cpu,verify]</code>)</td>
-</tr>
-<tr>
-<td><code>viz</code></td>
-<td>Matplotlib</td>
-<td>Plotting utilities (<code>fairness_training.viz</code>)</td>
-</tr>
-<tr>
-<td><code>dev</code></td>
-<td>pytest, pytest-cov, black</td>
-<td>Running the test suite</td>
+<td><code>save_path</code></td>
+<td><code>None</code></td>
+<td>Save to file instead of displaying</td>
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Training + fairness + visualization</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>pip<span class="w"> </span>install<span class="w"> </span>fairness_training<span class="o">[</span>train,verify,viz<span class="o">]</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># CPU-only (no CUDA) + fairness layer</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>pip<span class="w"> </span>install<span class="w"> </span>fairness_training<span class="o">[</span>cpu,verify<span class="o">]</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c1"># Full installation</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>pip<span class="w"> </span>install<span class="w"> </span>fairness_training<span class="o">[</span>full<span class="o">]</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="c1"># Development</span>
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>pip<span class="w"> </span>install<span class="w"> </span>fairness_training<span class="o">[</span>dev<span class="o">]</span>
-</code></pre></div>
+<p><strong>Expected keys in <code>history</code>:</strong> <code>train_loss</code>, <code>val_loss</code> (optional), <code>train_fairness_gap</code>, <code>val_fairness_gap</code> (optional).</p>
 <hr />
-<h2 id="install-from-source">Install from Source<a class="headerlink" href="#install-from-source" title="Permanent link">&para;</a></h2>
-<p>For the latest development version:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/dtroxell19/fairness_training.git
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nb">cd</span><span class="w"> </span>fairness_training
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.<span class="o">[</span>train,verify<span class="o">]</span>
+<h2 id="plot_group_distributions"><code>plot_group_distributions</code><a class="headerlink" href="#plot_group_distributions" title="Permanent link">&para;</a></h2>
+<p>Histogram of model predictions for each protected group. Useful for visually confirming that the fairness layer is working — the two group distributions should have similar means.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Pass return_predictions=True to get predictions and group indicators</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">metrics</span> <span class="o">=</span> <span class="n">trainer</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">test_loader</span><span class="p">,</span> <span class="n">return_predictions</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">fig</span> <span class="o">=</span> <span class="n">plot_group_distributions</span><span class="p">(</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">metrics</span><span class="p">[</span><span class="s1">&#39;predictions&#39;</span><span class="p">],</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">metrics</span><span class="p">[</span><span class="s1">&#39;protected&#39;</span><span class="p">],</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="n">attr_names</span><span class="o">=</span><span class="p">{</span><span class="mi">0</span><span class="p">:</span> <span class="s1">&#39;Gender&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span> <span class="s1">&#39;Race&#39;</span><span class="p">},</span>   <span class="c1"># optional human-readable names</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="n">title</span><span class="o">=</span><span class="s2">&quot;Test-set prediction distributions after fairness training&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="p">)</span>
 </code></pre></div>
+<p><strong>Arguments:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>predictions</code></td>
+<td>required</td>
+<td>Shape <code>(n,)</code> or <code>(n, 1)</code> array of model outputs</td>
+</tr>
+<tr>
+<td><code>protected_indicators</code></td>
+<td>required</td>
+<td>Dict <code>{attr_idx: binary 0/1 array}</code> from <code>metrics['protected']</code></td>
+</tr>
+<tr>
+<td><code>attr_names</code></td>
+<td><code>None</code></td>
+<td>Dict <code>{attr_idx: "Name"}</code> for axis labels</td>
+</tr>
+<tr>
+<td><code>title</code></td>
+<td><code>"Prediction Distributions by Group"</code></td>
+<td>Figure title</td>
+</tr>
+<tr>
+<td><code>bins</code></td>
+<td><code>30</code></td>
+<td>Number of histogram bins</td>
+</tr>
+<tr>
+<td><code>figsize</code></td>
+<td>auto</td>
+<td><code>(6 * n_attrs, 4)</code> by default</td>
+</tr>
+<tr>
+<td><code>save_path</code></td>
+<td><code>None</code></td>
+<td>Save to file instead of displaying</td>
+</tr>
+</tbody>
+</table>
 <hr />
-<h2 id="verify-installation">Verify Installation<a class="headerlink" href="#verify-installation" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">fairness_training</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nb">print</span><span class="p">(</span><span class="n">fairness_training</span><span class="o">.</span><span class="n">__version__</span><span class="p">)</span>  <span class="c1"># 0.1.0</span>
+<h2 id="plot_fairness_tradeoff"><code>plot_fairness_tradeoff</code><a class="headerlink" href="#plot_fairness_tradeoff" title="Permanent link">&para;</a></h2>
+<p>Scatter plot of loss vs fairness gap across multiple model configurations. This is the standard "fairness–accuracy tradeoff" figure from fairness papers.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">torch.nn</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">nn</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">torch.optim</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">optim</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">epsilons</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.01</span><span class="p">,</span> <span class="mf">0.05</span><span class="p">,</span> <span class="mf">0.10</span><span class="p">,</span> <span class="mf">0.20</span><span class="p">]</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="n">results</span> <span class="o">=</span> <span class="p">{}</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="k">for</span> <span class="n">eps</span> <span class="ow">in</span> <span class="n">epsilons</span><span class="p">:</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    <span class="n">backbone</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>        <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">INPUT_DIM</span><span class="p">,</span> <span class="mi">64</span><span class="p">),</span> <span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">(),</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>        <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="mi">64</span><span class="p">,</span> <span class="mi">32</span><span class="p">),</span>        <span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">(),</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>        <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="mi">32</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>         <span class="n">nn</span><span class="o">.</span><span class="n">Sigmoid</span><span class="p">(),</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>    <span class="p">)</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>    <span class="n">m</span> <span class="o">=</span> <span class="n">FairModel</span><span class="o">.</span><span class="n">wrap</span><span class="p">(</span><span class="n">backbone</span><span class="p">,</span> <span class="n">protected_attr_idx</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">fairness_tolerance</span><span class="o">=</span><span class="n">eps</span><span class="p">)</span>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>    <span class="n">t</span> <span class="o">=</span> <span class="n">FairTrainer</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">criterion</span><span class="p">,</span> <span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">parameters</span><span class="p">()))</span>
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>    <span class="n">t</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">train_loader</span><span class="p">,</span> <span class="n">epochs</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a>    <span class="n">results</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;ε=</span><span class="si">{</span><span class="n">eps</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">test_loader</span><span class="p">)</span>
+<a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a>
+<a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a><span class="n">fig</span> <span class="o">=</span> <span class="n">plot_fairness_tradeoff</span><span class="p">(</span>
+<a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a>    <span class="n">results</span><span class="p">,</span>
+<a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a>    <span class="n">loss_key</span><span class="o">=</span><span class="s1">&#39;test_loss&#39;</span><span class="p">,</span>
+<a id="__codelineno-4-21" name="__codelineno-4-21" href="#__codelineno-4-21"></a>    <span class="n">gap_key</span><span class="o">=</span><span class="s1">&#39;weighted_avg_fairness_gap&#39;</span><span class="p">,</span>
+<a id="__codelineno-4-22" name="__codelineno-4-22" href="#__codelineno-4-22"></a>    <span class="n">title</span><span class="o">=</span><span class="s1">&#39;Fairness–Accuracy Tradeoff (mean_pred)&#39;</span><span class="p">,</span>
+<a id="__codelineno-4-23" name="__codelineno-4-23" href="#__codelineno-4-23"></a><span class="p">)</span>
 </code></pre></div>
+<p><strong>Arguments:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>results</code></td>
+<td>required</td>
+<td>Dict <code>{label: metrics_dict}</code></td>
+</tr>
+<tr>
+<td><code>loss_key</code></td>
+<td><code>"test_loss"</code></td>
+<td>Key to use as x-axis</td>
+</tr>
+<tr>
+<td><code>gap_key</code></td>
+<td><code>"weighted_avg_fairness_gap"</code></td>
+<td>Key to use as y-axis</td>
+</tr>
+<tr>
+<td><code>title</code></td>
+<td><code>"Fairness–Accuracy Tradeoff"</code></td>
+<td>Figure title</td>
+</tr>
+<tr>
+<td><code>figsize</code></td>
+<td><code>(7, 5)</code></td>
+<td><code>(width, height)</code> in inches</td>
+</tr>
+<tr>
+<td><code>save_path</code></td>
+<td><code>None</code></td>
+<td>Save to file instead of displaying</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition tip">
+<p class="admonition-title">Which gap metric to use on the y-axis</p>
+<p>Use <code>weighted_avg_fairness_gap</code> for the y-axis — it's the quantity the theorem bounds, and it's what the model is actually optimising against. <code>pooled_fairness_gap</code> may look better or worse depending on batch group ratios, and doesn't directly correspond to the training objective.</p>
+</div>
 <hr />
-<h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
-<h3 id="attributeerror-module-onnxscriptvalues-has-no-attribute-paramschema"><code>AttributeError: module 'onnxscript.values' has no attribute 'ParamSchema'</code><a class="headerlink" href="#attributeerror-module-onnxscriptvalues-has-no-attribute-paramschema" title="Permanent link">&para;</a></h3>
-<p>A conflict with <code>onnxscript</code>, which this library doesn't use:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pip<span class="w"> </span>uninstall<span class="w"> </span>onnxscript<span class="w"> </span>-y
+<h2 id="saving-figures">Saving Figures<a class="headerlink" href="#saving-figures" title="Permanent link">&para;</a></h2>
+<p>All three functions accept a <code>save_path</code> argument:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">fig</span> <span class="o">=</span> <span class="n">plot_training_history</span><span class="p">(</span><span class="n">history</span><span class="p">,</span> <span class="n">save_path</span><span class="o">=</span><span class="s2">&quot;training_history.pdf&quot;</span><span class="p">)</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">fig</span> <span class="o">=</span> <span class="n">plot_group_distributions</span><span class="p">(</span><span class="n">preds</span><span class="p">,</span> <span class="n">protected</span><span class="p">,</span> <span class="n">save_path</span><span class="o">=</span><span class="s2">&quot;group_dist.png&quot;</span><span class="p">)</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">fig</span> <span class="o">=</span> <span class="n">plot_fairness_tradeoff</span><span class="p">(</span><span class="n">results</span><span class="p">,</span> <span class="n">save_path</span><span class="o">=</span><span class="s2">&quot;tradeoff.pdf&quot;</span><span class="p">)</span>
 </code></pre></div>
-<h3 id="solver-issues">Solver issues<a class="headerlink" href="#solver-issues" title="Permanent link">&para;</a></h3>
-<p>The <code>verify</code> extra installs <a href="https://github.com/embotech/ecos">ECOS</a>, which handles most problems. If you hit numerical issues, try:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pip<span class="w"> </span>install<span class="w"> </span>clarabel<span class="w">   </span><span class="c1"># recommended alternative</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>pip<span class="w"> </span>install<span class="w"> </span>scs<span class="w">        </span><span class="c1"># another option</span>
-</code></pre></div>
+<p>Supported formats: anything matplotlib supports — <code>.png</code>, <code>.pdf</code>, <code>.svg</code>, <code>.eps</code>.</p>
 <hr />
-<h2 id="next-steps">Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
-<p>Head to the <strong><a href="../quickstart/">Quickstart</a></strong> to train your first fairness-aware model.</p>
+<h2 id="quickstart-notebook">Quickstart Notebook<a class="headerlink" href="#quickstart-notebook" title="Permanent link">&para;</a></h2>
+<p>The <a href="https://colab.research.google.com/github/dtroxell19/fairness_training/blob/main/notebooks/quickstart.ipynb">Quickstart Colab notebook</a> shows all three functions with live output on a synthetic dataset.</p>
 
 
 
